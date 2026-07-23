@@ -128,10 +128,14 @@ def harvard_success():
                                 error=f"El pago no se completó (estado: {transaction.get('status', 'desconocido')}).")
 
     token = transaction.get("reference")
-    entry = PENDING_RESUMES.pop(token, None)
+    # Keep the entry until the docx is actually built and ready to download, so a
+    # customer who already paid can just reload this URL to retry after a
+    # transient failure instead of having to pay again.
+    entry = PENDING_RESUMES.get(token)
     if not entry:
         return render_template("index.html", result=None,
-                                error="No se encontró tu CV original. Vuelve a subirlo y genera de nuevo.")
+                                error="No se encontró tu CV original. Escríbenos por WhatsApp con tu "
+                                      "comprobante de pago para resolverlo.")
 
     from harvard_cv import build_harvard_docx, rewrite_resume_harvard
 
@@ -140,7 +144,7 @@ def harvard_success():
     except Exception as exc:
         return render_template("index.html", result=None,
                                 error=f"Se procesó tu pago pero no pudimos generar el CV: {exc}. "
-                                      f"Escríbenos por WhatsApp para resolverlo.")
+                                      f"Recarga esta página para reintentar, o escríbenos por WhatsApp.")
 
     try:
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
@@ -149,8 +153,9 @@ def harvard_success():
     except Exception:
         return render_template("index.html", result=None,
                                 error="Se procesó tu pago pero no pudimos armar el archivo docx. "
-                                      "Escríbenos por WhatsApp para resolverlo.")
+                                      "Recarga esta página para reintentar, o escríbenos por WhatsApp.")
 
+    PENDING_RESUMES.pop(token, None)
     return send_file(tmp_path, as_attachment=True, download_name="CV_Harvard.docx")
 
 

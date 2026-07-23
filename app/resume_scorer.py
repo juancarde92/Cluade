@@ -74,6 +74,24 @@ def _keywords_from_text(text, min_len=4):
     return {w for w in words if len(w) >= min_len and w not in STOPWORDS}
 
 
+def _despace(s):
+    return re.sub(r"\s+", "", s)
+
+
+def _text_contains(text_lower, text_despaced, keyword):
+    """Check for a keyword directly, or via a whitespace-collapsed match.
+
+    PDF templates with letter-spaced (tracked) headings extract as text with
+    stray spaces between letters (e.g. "E X P E R I E N C I A"), which breaks
+    a plain substring search here and in many real ATS parsers too.
+    """
+    if keyword in text_lower:
+        return True, False
+    if _despace(keyword) in text_despaced:
+        return True, True
+    return False, False
+
+
 def score_resume(text, job_description=None):
     text_lower = text.lower()
     words = text.split()
@@ -96,11 +114,30 @@ def score_resume(text, job_description=None):
         suggestions.append("Incluye un enlace a tu LinkedIn o portafolio.")
 
     # 2. Sections (20 pts, 5 c/u)
-    sections_found = {key: any(kw in text_lower for kw in kws) for key, kws in SECTION_HEADERS.items()}
+    text_despaced = _despace(text_lower)
+    sections_found = {}
+    spaced_headers_detected = False
+    for key, kws in SECTION_HEADERS.items():
+        found = False
+        via_spacing = False
+        for kw in kws:
+            found, via_spacing = _text_contains(text_lower, text_despaced, kw)
+            if found:
+                break
+        sections_found[key] = found
+        if found and via_spacing:
+            spaced_headers_detected = True
+
     sections_score = sum(5 for found in sections_found.values() if found)
     for key, found in sections_found.items():
         if not found:
             suggestions.append(f"Agrega una sección clara de '{key.capitalize()}' con encabezado estándar.")
+
+    if spaced_headers_detected:
+        issues.append("Se detectaron encabezados con letras separadas por espacios (texto con 'tracking' "
+                       "decorativo). Muchos sistemas ATS buscan coincidencias exactas de texto y no "
+                       "reconocerán esos encabezados; usa texto normal sin espaciado entre letras en los "
+                       "títulos de sección.")
 
     # 3. ATS formatting (20 pts)
     format_score = 20
@@ -121,6 +158,9 @@ def score_resume(text, job_description=None):
     if "\t" in text:
         format_score -= 4
         issues.append("Se detectaron tabulaciones, posible uso de tablas que los ATS no leen bien.")
+
+    if spaced_headers_detected:
+        format_score -= 5
 
     format_score = max(0, format_score)
 
@@ -146,7 +186,8 @@ def score_resume(text, job_description=None):
     if job_description and job_description.strip():
         jd_keywords = _keywords_from_text(job_description)
         for kw in jd_keywords:
-            if kw in text_lower:
+            found, _ = _text_contains(text_lower, text_despaced, kw)
+            if found:
                 matched_keywords.append(kw)
             else:
                 missing_keywords.append(kw)

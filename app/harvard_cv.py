@@ -77,16 +77,29 @@ def _add_section_heading(doc, text):
 
 
 def _add_entry_line(doc, left_text, location, dates):
+    left_text = str(left_text or "")
+    location = str(location or "")
+    dates = str(dates or "")
     p = doc.add_paragraph()
     p.paragraph_format.tab_stops.add_tab_stop(Inches(6.4), WD_TAB_ALIGNMENT.RIGHT)
     left = left_text if not location else f"{left_text}, {location}"
     run = p.add_run(left)
     run.bold = True
-    p.add_run("\t" + (dates or ""))
+    p.add_run("\t" + dates)
     return p
 
 
+def _as_list(value):
+    if isinstance(value, list):
+        return [v for v in value if isinstance(v, dict)]
+    if isinstance(value, dict):
+        return [value]
+    return []
+
+
 def build_harvard_docx(data, output_path):
+    if not isinstance(data, dict):
+        data = {}
     doc = Document()
     style = doc.styles["Normal"]
     style.font.name = "Times New Roman"
@@ -100,39 +113,48 @@ def build_harvard_docx(data, output_path):
 
     name_p = doc.add_paragraph()
     name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = name_p.add_run((data.get("name") or "").upper())
+    run = name_p.add_run(str(data.get("name") or "").upper())
     run.bold = True
     run.font.size = Pt(16)
 
     contact_p = doc.add_paragraph()
     contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    contact_p.add_run(data.get("contact_line") or "")
+    contact_p.add_run(str(data.get("contact_line") or ""))
 
-    if data.get("summary"):
+    summary = data.get("summary")
+    if summary:
         _add_section_heading(doc, "Resumen Profesional")
-        doc.add_paragraph(data["summary"])
+        doc.add_paragraph(str(summary))
 
-    if data.get("education"):
+    education = _as_list(data.get("education"))
+    if education:
         _add_section_heading(doc, "Educación")
-        for edu in data["education"]:
+        for edu in education:
             _add_entry_line(doc, edu.get("school", ""), edu.get("location", ""), edu.get("dates", ""))
             if edu.get("degree"):
                 p = doc.add_paragraph()
-                p.add_run(edu["degree"]).italic = True
+                p.add_run(str(edu["degree"])).italic = True
 
-    if data.get("experience"):
+    experience = _as_list(data.get("experience"))
+    if experience:
         _add_section_heading(doc, "Experiencia Profesional")
-        for job in data["experience"]:
+        for job in experience:
             _add_entry_line(doc, job.get("organization", ""), job.get("location", ""), job.get("dates", ""))
             if job.get("title"):
                 p = doc.add_paragraph()
-                p.add_run(job["title"]).italic = True
-            for bullet in job.get("bullets", []):
+                p.add_run(str(job["title"])).italic = True
+            bullets = job.get("bullets", [])
+            if not isinstance(bullets, list):
+                bullets = [bullets]
+            for bullet in bullets:
                 bp = doc.add_paragraph(style="List Bullet")
-                bp.add_run(bullet)
+                bp.add_run(str(bullet))
 
-    if data.get("skills"):
+    skills = data.get("skills")
+    if isinstance(skills, list):
+        skills = ", ".join(str(s) for s in skills)
+    if skills:
         _add_section_heading(doc, "Habilidades y Herramientas")
-        doc.add_paragraph(data["skills"])
+        doc.add_paragraph(str(skills))
 
     doc.save(output_path)

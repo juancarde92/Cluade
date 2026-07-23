@@ -46,7 +46,7 @@
               <h2>{{ filename }}</h2>
             </div>
             <div class="score-circle score-{{ 'good' if result.score >= 7.5 else ('mid' if result.score >= 5 else 'low') }}"
-                 style="--pct: {{ (result.score * 10) | round(0, 'floor') }};">
+                 data-pct="{{ (result.score * 10) | round(0, 'floor') }}" style="--pct: 0;">
               <div class="score-circle-inner">
                 <span class="score-value">{{ result.score }}</span>
                 <span class="score-max">/10</span>
@@ -72,7 +72,7 @@
                 <span class="bar-value">{{ value }} / {{ max }}</span>
               </div>
               <div class="bar-track">
-                <div class="bar-fill" style="width: {{ (value / max * 100) | round(0) }}%;"></div>
+                <div class="bar-fill" data-width="{{ (value / max * 100) | round(0) }}" style="width: 0%;"></div>
               </div>
             </div>
             {% endfor %}
@@ -131,5 +131,21 @@
       {% endif %}
     </div>
   </div>
+
+  {% if result %}
+  <script>
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.querySelectorAll('.bar-fill').forEach(function (el) {
+          el.style.width = el.dataset.width + '%';
+        });
+        var ring = document.querySelector('.score-circle');
+        if (ring) {
+          ring.style.setProperty('--pct', ring.dataset.pct);
+        }
+      });
+    });
+  </script>
+  {% endif %}
 </body>
 </html>

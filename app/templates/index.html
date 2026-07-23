@@ -54,6 +54,13 @@
             </div>
           </div>
 
+          <a class="whatsapp-cta"
+             href="https://wa.me/{{ whatsapp_number }}?text={{ whatsapp_message | urlencode }}"
+             target="_blank" rel="noopener">
+            <span class="whatsapp-icon" aria-hidden="true"></span>
+            Habla con un asesor por WhatsApp
+          </a>
+
           <h3>Desglose de puntuación</h3>
           <div class="breakdown">
             {% set rows = [

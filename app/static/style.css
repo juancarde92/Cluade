@@ -199,6 +199,45 @@ button:active {
   box-shadow: 0 4px 10px rgba(15, 76, 117, 0.3);
 }
 
+.whatsapp-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 14px 20px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1fae5c, #16873f);
+  color: white;
+  font-weight: 700;
+  font-size: 0.98rem;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(22, 135, 63, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.whatsapp-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 22px rgba(22, 135, 63, 0.38);
+}
+
+.whatsapp-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: white;
+  border-radius: 50%;
+  position: relative;
+}
+
+.whatsapp-icon::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50% 50% 50% 4px;
+  background: #16873f;
+}
+
 .alert.error {
   margin-top: 20px;
   background: #fdecea;

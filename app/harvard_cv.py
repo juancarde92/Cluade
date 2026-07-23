@@ -52,18 +52,28 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin explicación adicion
 
 
 def rewrite_resume_harvard(raw_text):
-    import google.generativeai as genai
+    # Calls the Gemini REST API directly with `requests` instead of the
+    # google-generativeai SDK. The SDK pulls in grpcio/protobuf/google-api-core,
+    # a heavy dependency tree that was pushing memory past low-RAM deployment
+    # limits (e.g. Render's 512MB free tier) even with transport="rest".
+    import requests
 
-    # transport="rest" avoids loading grpcio, which has a heavy memory
-    # footprint that can OOM-kill a low-memory deployment (e.g. Render free tier).
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
+    api_key = os.environ["GEMINI_API_KEY"]
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    model = genai.GenerativeModel(model_name, system_instruction=SYSTEM_PROMPT)
-    response = model.generate_content(
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+
+    prompt = (
         f"Aquí está el texto extraído de un CV (puede tener errores de formato "
         f"por la extracción):\n\n---\n{raw_text}\n---\n\n{RESPONSE_SCHEMA_HINT}"
     )
-    text = response.text.strip()
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+    }
+    resp = requests.post(url, params={"key": api_key}, json=payload, timeout=60)
+    resp.raise_for_status()
+    body = resp.json()
+    text = body["candidates"][0]["content"]["parts"][0]["text"].strip()
     text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
     return json.loads(text)
 

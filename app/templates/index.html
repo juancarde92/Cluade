@@ -54,6 +54,18 @@
             </div>
           </div>
 
+          {% if harvard_enabled %}
+          <form action="{{ url_for('checkout', token=harvard_token) }}" method="post" class="harvard-cta">
+            <div class="harvard-cta-text">
+              <strong>¿Quieres una versión nueva y mejorada de tu CV?</strong>
+              <small>Generamos un CV reescrito en formato Harvard, listo en Word (.docx)</small>
+            </div>
+            <button type="submit" class="harvard-button">
+              Generar CV Harvard · ${{ '{:,}'.format(harvard_price) }} COP
+            </button>
+          </form>
+          {% endif %}
+
           <a class="whatsapp-cta"
              href="https://wa.me/{{ whatsapp_number }}?text={{ whatsapp_message | urlencode }}"
              target="_blank" rel="noopener">

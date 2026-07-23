@@ -199,6 +199,46 @@ button:active {
   box-shadow: 0 4px 10px rgba(15, 76, 117, 0.3);
 }
 
+.harvard-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding: 18px 22px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fff8ec, #fdf1da);
+  border: 1px solid #f0d9ad;
+}
+
+.harvard-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.harvard-cta-text small { color: var(--muted); }
+
+.harvard-button {
+  background: linear-gradient(135deg, #b8720c, #8f580a);
+  color: white;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(184, 114, 12, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.harvard-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(184, 114, 12, 0.38);
+}
+
 .whatsapp-cta {
   display: flex;
   align-items: center;

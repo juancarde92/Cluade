@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calificador de Hojas de Vida ATS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Calificador de Hojas de Vida ATS</h1>
+      <p class="subtitle">Sube tu CV y obtén una calificación del 1 al 10 sobre qué tan visible y adecuado es para filtros ATS y reclutadores.</p>
+    </header>
+
+    <form action="/analyze" method="post" enctype="multipart/form-data" class="upload-form">
+      <label class="file-label" for="resume">
+        <span>Selecciona tu CV (PDF, DOCX o TXT)</span>
+        <input type="file" id="resume" name="resume" accept=".pdf,.docx,.txt" required>
+      </label>
+
+      <label class="jd-label" for="job_description">
+        Oferta de trabajo (opcional, mejora la precisión de la calificación)
+        <textarea id="job_description" name="job_description" rows="5"
+          placeholder="Pega aquí la descripción del puesto para comparar palabras clave..."></textarea>
+      </label>
+
+      <button type="submit">Calificar mi CV</button>
+    </form>
+
+    {% if error %}
+      <div class="alert error">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <section class="results">
+        <h2>Resultado para: {{ filename }}</h2>
+
+        <div class="score-circle score-{{ 'good' if result.score >= 7.5 else ('mid' if result.score >= 5 else 'low') }}">
+          <span class="score-value">{{ result.score }}</span>
+          <span class="score-max">/10</span>
+        </div>
+
+        <h3>Desglose de puntuación</h3>
+        <table class="breakdown">
+          <tr><td>Información de contacto</td><td>{{ result.breakdown.contacto }} / 10</td></tr>
+          <tr><td>Secciones estándar</td><td>{{ result.breakdown.secciones }} / 20</td></tr>
+          <tr><td>Formato compatible con ATS</td><td>{{ result.breakdown.formato_ats }} / 20</td></tr>
+          <tr><td>Calidad del contenido</td><td>{{ result.breakdown.calidad_contenido }} / 20</td></tr>
+          {% if result.breakdown.coincidencia_oferta is not none %}
+          <tr><td>Coincidencia con la oferta</td><td>{{ result.breakdown.coincidencia_oferta }} / 20</td></tr>
+          {% endif %}
+        </table>
+
+        <h3>Secciones detectadas</h3>
+        <ul class="sections-list">
+          {% for name, found in result.sections_found.items() %}
+            <li class="{{ 'yes' if found else 'no' }}">{{ 'OK' if found else 'Falta' }} — {{ name.capitalize() }}</li>
+          {% endfor %}
+        </ul>
+
+        {% if result.matched_keywords %}
+        <h3>Palabras clave encontradas de la oferta</h3>
+        <p class="keywords matched">{{ result.matched_keywords | join(', ') }}</p>
+        {% endif %}
+
+        {% if result.missing_keywords %}
+        <h3>Palabras clave ausentes de la oferta</h3>
+        <p class="keywords missing">{{ result.missing_keywords | join(', ') }}</p>
+        {% endif %}
+
+        {% if result.issues %}
+        <h3>Problemas detectados</h3>
+        <ul class="issues-list">
+          {% for issue in result.issues %}
+            <li>{{ issue }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        <h3>Sugerencias de mejora</h3>
+        <ul class="suggestions-list">
+          {% for s in result.suggestions %}
+            <li>{{ s }}</li>
+          {% else %}
+            <li>¡Tu CV cumple con los criterios básicos evaluados!</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  </div>
+</body>
+</html>

@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 import requests
 from flask import Flask, redirect, render_template, request, send_file
 
-from harvard_cv import TEMPLATE_CHOICES, build_docx, rewrite_resume_harvard, send_cv_email
+from harvard_cv import TEMPLATE_CHOICES, build_docx, rewrite_resume_harvard
 from resume_scorer import extract_text, score_resume
 
 app = Flask(__name__)
@@ -178,13 +178,6 @@ def harvard_success():
                                 error="Se procesó tu pago pero no pudimos armar el archivo docx. "
                                       "Recarga esta página para reintentar, o escríbenos por WhatsApp.")
 
-    email_sent = False
-    email_error = None
-    try:
-        email_sent = send_cv_email(entry["email"], tmp_path, "CV_Harvard.docx", entry.get("full_name", ""))
-    except Exception as exc:
-        email_error = str(exc)
-
     file_token = uuid.uuid4().hex
     READY_FILES[file_token] = tmp_path
 
@@ -192,8 +185,7 @@ def harvard_success():
     return render_template(
         "index.html", result=None, error=None,
         harvard_success=True, download_token=file_token,
-        customer_name=entry.get("full_name", ""), customer_email=entry.get("email", ""),
-        email_sent=email_sent, email_error=email_error,
+        customer_name=entry.get("full_name", ""),
     )
 
 

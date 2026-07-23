@@ -42,15 +42,7 @@
         <section class="results harvard-confirmation">
           <div class="confirmation-icon" aria-hidden="true">✓</div>
           <h2>¡Tu CV estilo Harvard está listo, {{ customer_name }}!</h2>
-
-          {% if email_sent %}
-            <p class="confirmation-text">También te lo enviamos a <strong>{{ customer_email }}</strong>.</p>
-          {% else %}
-            <div class="alert error">
-              No pudimos enviarte el correo automáticamente{% if email_error %} ({{ email_error }}){% endif %}.
-              Descárgalo desde el botón de abajo.
-            </div>
-          {% endif %}
+          <p class="confirmation-text">Descárgalo desde el botón de abajo.</p>
 
           <a class="harvard-button download-button" href="{{ url_for('harvard_download', file_token=download_token) }}">
             Descargar mi CV (.docx)

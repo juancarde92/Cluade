@@ -41,7 +41,8 @@ def rewrite_resume_harvard(raw_text):
     import google.generativeai as genai
 
     genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("gemini-2.0-flash", system_instruction=SYSTEM_PROMPT)
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = genai.GenerativeModel(model_name, system_instruction=SYSTEM_PROMPT)
     response = model.generate_content(
         f"Aquí está el texto extraído de un CV (puede tener errores de formato "
         f"por la extracción):\n\n---\n{raw_text}\n---\n\n{RESPONSE_SCHEMA_HINT}"

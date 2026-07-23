@@ -1,13 +1,27 @@
 """Rewrite a resume into Harvard-style content and render it as a .docx."""
+import copy
 import json
 import os
 import re
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
-from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt
+from docx.text.paragraph import Paragraph
+
+ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets", "harvard_templates")
+
+TEMPLATE_CHOICES = {
+    "moderno": {
+        "label": "Moderno",
+        "description": "Diseño limpio de una columna, encabezados con línea inferior.",
+        "path": os.path.join(ASSETS_DIR, "moderno.docx"),
+    },
+    "oficial": {
+        "label": "Harvard Oficial",
+        "description": "Plantilla clásica del Harvard Office of Career Services.",
+        "path": os.path.join(ASSETS_DIR, "oficial.docx"),
+    },
+}
 
 SYSTEM_PROMPT = (
     "Eres un experto en redacción de hojas de vida en el formato estándar de Harvard "
@@ -52,43 +66,6 @@ def rewrite_resume_harvard(raw_text):
     return json.loads(text)
 
 
-def _add_bottom_border(paragraph):
-    p = paragraph._p
-    p_pr = p.get_or_add_pPr()
-    p_bdr = OxmlElement("w:pBdr")
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), "6")
-    bottom.set(qn("w:space"), "1")
-    bottom.set(qn("w:color"), "000000")
-    p_bdr.append(bottom)
-    p_pr.append(p_bdr)
-
-
-def _add_section_heading(doc, text):
-    p = doc.add_paragraph()
-    run = p.add_run(text.upper())
-    run.bold = True
-    run.font.size = Pt(12)
-    p.paragraph_format.space_before = Pt(12)
-    p.paragraph_format.space_after = Pt(4)
-    _add_bottom_border(p)
-    return p
-
-
-def _add_entry_line(doc, left_text, location, dates):
-    left_text = str(left_text or "")
-    location = str(location or "")
-    dates = str(dates or "")
-    p = doc.add_paragraph()
-    p.paragraph_format.tab_stops.add_tab_stop(Inches(6.4), WD_TAB_ALIGNMENT.RIGHT)
-    left = left_text if not location else f"{left_text}, {location}"
-    run = p.add_run(left)
-    run.bold = True
-    p.add_run("\t" + dates)
-    return p
-
-
 def _as_list(value):
     if isinstance(value, list):
         return [v for v in value if isinstance(v, dict)]
@@ -97,64 +74,491 @@ def _as_list(value):
     return []
 
 
-def build_harvard_docx(data, output_path):
+# ---------------------------------------------------------------------------
+# Generic docx XML helpers used to fill the two uploaded Harvard templates
+# while preserving their original design (fonts, spacing, bullets, tab
+# stops for right-aligned dates, table layout).
+# ---------------------------------------------------------------------------
+
+def _distinct_cells(row):
+    """A merged cell is returned once per spanned column by python-docx;
+    dedupe by identity to get the real, independent cells in a row."""
+    seen_ids = set()
+    cells = []
+    for cell in row.cells:
+        if id(cell) not in seen_ids:
+            seen_ids.add(id(cell))
+            cells.append(cell)
+    return cells
+
+
+def _set_para_text(paragraph, text):
+    """Overwrite a paragraph's visible text with a single new run, preserving
+    formatting from the first existing run found. Removes both plain runs
+    (w:r) and hyperlink-wrapped runs (w:hyperlink > w:r) — paragraph.runs
+    only sees the former, so a leftover hyperlink's text would otherwise
+    stay stuck onto the new text."""
+    p = paragraph._p
+    rpr_template = None
+    for child in list(p):
+        if child.tag == qn("w:r"):
+            if rpr_template is None:
+                rpr = child.find(qn("w:rPr"))
+                if rpr is not None:
+                    rpr_template = copy.deepcopy(rpr)
+            p.remove(child)
+        elif child.tag == qn("w:hyperlink"):
+            if rpr_template is None:
+                inner_r = child.find(qn("w:r"))
+                rpr = inner_r.find(qn("w:rPr")) if inner_r is not None else None
+                if rpr is not None:
+                    rpr_template = copy.deepcopy(rpr)
+            p.remove(child)
+
+    run = paragraph.add_run(text)
+    if rpr_template is not None:
+        existing = run._r.find(qn("w:rPr"))
+        if existing is not None:
+            run._r.remove(existing)
+        run._r.insert(0, rpr_template)
+
+
+def _duplicate_paragraph(ref_paragraph):
+    new_p = copy.deepcopy(ref_paragraph._p)
+    ref_paragraph._p.addnext(new_p)
+    return Paragraph(new_p, ref_paragraph._parent)
+
+
+def _remove_paragraph(paragraph):
+    el = paragraph._p
+    el.getparent().remove(el)
+
+
+def _find_paragraph(doc, text):
+    for p in doc.paragraphs:
+        if p.text.strip() == text:
+            return p
+    return None
+
+
+def _set_bullet_list(cell_or_doc, items):
+    """Resize a run of paragraphs (inside a table cell, or in the document
+    body) to match `items`, reusing the first paragraph as the formatting
+    template (preserves native Word bullet numbering)."""
+    items = [str(i).strip() for i in (items or []) if str(i or "").strip()]
+    paragraphs = cell_or_doc.paragraphs
+    if not paragraphs:
+        return
+    template_p = paragraphs[0]
+    for extra in paragraphs[1:]:
+        _remove_paragraph(extra)
+    if not items:
+        _set_para_text(template_p, "")
+        return
+    _set_para_text(template_p, items[0])
+    last_p = template_p
+    for item in items[1:]:
+        last_p = _duplicate_paragraph(last_p)
+        _set_para_text(last_p, item)
+
+
+def _run_rpr_template(paragraph, bold):
+    for run in paragraph.runs:
+        if bool(run.bold) == bold and run.text.strip():
+            rpr = run._r.find(qn("w:rPr"))
+            return copy.deepcopy(rpr) if rpr is not None else None
+    return None
+
+
+def _set_tab_line(paragraph, left_text, right_text):
+    """Replace a paragraph's content with `left \\t right`, reusing the
+    paragraph's existing bold/normal run formatting (used for the
+    Organization/City and Position/Dates lines in the official template)."""
+    bold_rpr = _run_rpr_template(paragraph, bold=True)
+    normal_rpr = _run_rpr_template(paragraph, bold=False)
+    for run in list(paragraph.runs):
+        run._r.getparent().remove(run._r)
+
+    def add(text, rpr):
+        run = paragraph.add_run(text)
+        if rpr is not None:
+            existing = run._r.find(qn("w:rPr"))
+            if existing is not None:
+                run._r.remove(existing)
+            run._r.insert(0, copy.deepcopy(rpr))
+        return run
+
+    add(left_text, bold_rpr)
+    add("\t", normal_rpr)
+    add(right_text, normal_rpr)
+
+
+def _remove_row(row):
+    row._tr.getparent().remove(row._tr)
+
+
+def _find_header_row(table, text):
+    for row in table.rows:
+        cells = _distinct_cells(row)
+        if cells and cells[0].paragraphs and cells[0].paragraphs[0].text.strip() == text:
+            return row
+    raise ValueError(f"header row not found: {text!r}")
+
+
+def _rows_between(table, start_row, end_row):
+    result = []
+    el = start_row._tr.getnext()
+    while el is not None and el is not end_row._tr:
+        for r in table.rows:
+            if r._tr is el:
+                result.append(r)
+                break
+        el = el.getnext()
+    return result
+
+
+def _rows_after(table, start_row):
+    result = []
+    el = start_row._tr.getnext()
+    while el is not None:
+        for r in table.rows:
+            if r._tr is el:
+                result.append(r)
+                break
+        el = el.getnext()
+    return result
+
+
+def build_from_moderno(data, output_path):
     if not isinstance(data, dict):
         data = {}
-    doc = Document()
-    style = doc.styles["Normal"]
-    style.font.name = "Times New Roman"
-    style.font.size = Pt(11)
+    doc = Document(TEMPLATE_CHOICES["moderno"]["path"])
+    table = doc.tables[0]
 
-    for section in doc.sections:
-        section.top_margin = Inches(0.7)
-        section.bottom_margin = Inches(0.7)
-        section.left_margin = Inches(0.8)
-        section.right_margin = Inches(0.8)
+    name_cell = _distinct_cells(table.rows[0])[0]
+    _set_para_text(name_cell.paragraphs[0], str(data.get("name") or "").strip())
 
-    name_p = doc.add_paragraph()
-    name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = name_p.add_run(str(data.get("name") or "").upper())
-    run.bold = True
-    run.font.size = Pt(16)
+    contact_cell = _distinct_cells(table.rows[1])[0]
+    _set_para_text(contact_cell.paragraphs[0], str(data.get("contact_line") or "").strip())
 
-    contact_p = doc.add_paragraph()
-    contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    contact_p.add_run(str(data.get("contact_line") or ""))
+    summary_cell = _distinct_cells(table.rows[3])[0]
+    _set_para_text(summary_cell.paragraphs[0], str(data.get("summary") or "").strip())
 
-    summary = data.get("summary")
-    if summary:
-        _add_section_heading(doc, "Resumen Profesional")
-        doc.add_paragraph(str(summary))
+    exp_header = _find_header_row(table, "EXPERIENCIA PROFESIONAL")
+    edu_header = _find_header_row(table, "EDUCACIÓN")
+    skills_header = _find_header_row(table, "SKILLS ADICIONALES")
+    tech_header = _find_header_row(table, "TECNOLOGÍAS")
 
-    education = _as_list(data.get("education"))
-    if education:
-        _add_section_heading(doc, "Educación")
-        for edu in education:
-            _add_entry_line(doc, edu.get("school", ""), edu.get("location", ""), edu.get("dates", ""))
-            if edu.get("degree"):
-                p = doc.add_paragraph()
-                p.add_run(str(edu["degree"])).italic = True
+    # --- Experience: groups of 3 rows (title/loc, bullets, spacer) ---
+    between = _rows_between(table, exp_header, edu_header)
+    groups = [between[i:i + 3] for i in range(1, len(between), 3)]
+    groups = [g for g in groups if len(g) == 3]
 
     experience = _as_list(data.get("experience"))
-    if experience:
-        _add_section_heading(doc, "Experiencia Profesional")
-        for job in experience:
-            _add_entry_line(doc, job.get("organization", ""), job.get("location", ""), job.get("dates", ""))
-            if job.get("title"):
-                p = doc.add_paragraph()
-                p.add_run(str(job["title"])).italic = True
-            bullets = job.get("bullets", [])
-            if not isinstance(bullets, list):
-                bullets = [bullets]
-            for bullet in bullets:
-                bp = doc.add_paragraph(style="List Bullet")
-                bp.add_run(str(bullet))
+    target = max(len(experience), 1)
+    while len(groups) < target:
+        title_row, bullets_row, spacer_row = groups[-1]
+        new_title = _duplicate_row_after(table, title_row, spacer_row)
+        new_bullets = _duplicate_row_after(table, bullets_row, new_title)
+        new_spacer = _duplicate_row_after(table, spacer_row, new_bullets)
+        groups.append([new_title, new_bullets, new_spacer])
+    while len(groups) > target:
+        for row in groups.pop():
+            _remove_row(row)
 
-    skills = data.get("skills")
-    if isinstance(skills, list):
-        skills = ", ".join(str(s) for s in skills)
-    if skills:
-        _add_section_heading(doc, "Habilidades y Herramientas")
-        doc.add_paragraph(str(skills))
+    filled_experience = experience if experience else [{}]
+    for (title_row, bullets_row, _spacer), job in zip(groups, filled_experience):
+        cells = _distinct_cells(title_row)
+        cell0, cell1 = cells[0], cells[1]
+        _set_para_text(cell0.paragraphs[0], str(job.get("organization") or ""))
+        if len(cell0.paragraphs) > 1:
+            _set_para_text(cell0.paragraphs[1], str(job.get("title") or ""))
+        _set_para_text(cell1.paragraphs[0], str(job.get("location") or ""))
+        if len(cell1.paragraphs) > 1:
+            _set_para_text(cell1.paragraphs[1], str(job.get("dates") or ""))
+
+        bullets = job.get("bullets") or []
+        if not isinstance(bullets, list):
+            bullets = [bullets]
+        _set_bullet_list(_distinct_cells(bullets_row)[0], bullets)
+
+    # --- Education: groups of 2 rows (entry, spacer) ---
+    edu_between = _rows_between(table, edu_header, skills_header)
+    edu_groups = [edu_between[i:i + 2] for i in range(1, len(edu_between), 2)]
+    edu_groups = [g for g in edu_groups if len(g) == 2]
+
+    education = _as_list(data.get("education"))
+    target = max(len(education), 1)
+    while len(edu_groups) < target:
+        entry_row, spacer_row = edu_groups[-1]
+        new_entry = _duplicate_row_after(table, entry_row, spacer_row)
+        new_spacer = _duplicate_row_after(table, spacer_row, new_entry)
+        edu_groups.append([new_entry, new_spacer])
+    while len(edu_groups) > target:
+        for row in edu_groups.pop():
+            _remove_row(row)
+
+    filled_education = education if education else [{}]
+    for (entry_row, _spacer), edu in zip(edu_groups, filled_education):
+        cells = _distinct_cells(entry_row)
+        cell0, cell1 = cells[0], cells[1]
+        paras0 = cell0.paragraphs
+        _set_para_text(paras0[0], str(edu.get("school") or ""))
+        if len(paras0) > 1:
+            _set_para_text(paras0[1], str(edu.get("degree") or ""))
+        for extra in paras0[2:]:
+            _remove_paragraph(extra)
+        paras1 = cell1.paragraphs
+        _set_para_text(paras1[0], str(edu.get("location") or ""))
+        if len(paras1) > 1:
+            _set_para_text(paras1[1], str(edu.get("dates") or ""))
+
+    # --- Skills / Technologies ---
+    skills_raw = data.get("skills")
+    if isinstance(skills_raw, list):
+        skills_items = [str(s).strip() for s in skills_raw if str(s).strip()]
+    else:
+        skills_items = [s.strip() for s in str(skills_raw or "").split(",") if s.strip()]
+
+    skills_between = _rows_between(table, skills_header, tech_header)
+    if skills_between:
+        _set_bullet_list(_distinct_cells(skills_between[-1])[0], skills_items)
+
+    tech_rows = _rows_after(table, tech_header)
+    if tech_rows:
+        tech_cell = _distinct_cells(tech_rows[-1])[0]
+        _set_para_text(tech_cell.paragraphs[0], ", ".join(skills_items))
+        for extra in tech_cell.paragraphs[1:]:
+            _remove_paragraph(extra)
 
     doc.save(output_path)
+
+
+def _duplicate_row_after(table, ref_row, after_row):
+    new_tr = copy.deepcopy(ref_row._tr)
+    after_row._tr.addnext(new_tr)
+    for r in table.rows:
+        if r._tr is new_tr:
+            return r
+    raise RuntimeError("could not locate duplicated row")
+
+
+def _paragraphs_between(doc, start_text, end_text):
+    started = False
+    result = []
+    for p in doc.paragraphs:
+        t = p.text.strip()
+        if not started:
+            if t == start_text:
+                started = True
+            continue
+        if t == end_text:
+            break
+        result.append(p)
+    return result
+
+
+def _duplicate_paragraph_after(ref_paragraph, after_paragraph):
+    new_p = copy.deepcopy(ref_paragraph._p)
+    after_paragraph._p.addnext(new_p)
+    return Paragraph(new_p, ref_paragraph._parent)
+
+
+def _set_labeled_line(paragraph, label, value):
+    bold_rpr = _run_rpr_template(paragraph, bold=True)
+    for run in list(paragraph.runs):
+        run._r.getparent().remove(run._r)
+
+    def add(text, rpr):
+        run = paragraph.add_run(text)
+        if rpr is not None:
+            existing = run._r.find(qn("w:rPr"))
+            if existing is not None:
+                run._r.remove(existing)
+            run._r.insert(0, copy.deepcopy(rpr))
+
+    add(label, bold_rpr)
+    add(value, None)
+
+
+def build_from_oficial(data, output_path):
+    if not isinstance(data, dict):
+        data = {}
+    doc = Document(TEMPLATE_CHOICES["oficial"]["path"])
+
+    name_p = _find_paragraph(doc, "Firstname Lastname")
+    if name_p is not None:
+        _set_para_text(name_p, str(data.get("name") or "").strip())
+        if name_p.runs:
+            name_p.runs[0].bold = True
+
+    contact_p = _find_paragraph(
+        doc, "Home or Campus Street Address • City, State Zip • youremail@college.harvard.edu • phone number"
+    )
+    if contact_p is not None:
+        _set_para_text(contact_p, str(data.get("contact_line") or "").strip())
+
+    # --- Education: drop the coursework/study-abroad/high-school placeholders ---
+    for text in (
+        "Relevant Coursework: [Note: Optional. Awards and honors can also be listed here.]",
+        "Study Abroad [Note: If Applicable]\tCity, Country",
+        "Study abroad coursework in \t.\tMonth Year – Month Year",
+        "High School Name\tCity, State",
+        "[Note: May include GPA, SAT/ACT scores, or academic honors an employer may want to know]\t Graduation Date",
+    ):
+        p = _find_paragraph(doc, text)
+        if p is not None:
+            _remove_paragraph(p)
+
+    edu_school_p = _find_paragraph(doc, "Harvard University\tCambridge, MA")
+    edu_degree_p = _find_paragraph(
+        doc, "Degree, Concentration. GPA [Note: GPA is Optional] \tGraduation Date \nThesis [Note: Optional]"
+    )
+    education = _as_list(data.get("education"))
+    if edu_school_p is not None and edu_degree_p is not None:
+        if not education:
+            _remove_paragraph(edu_degree_p)
+            _remove_paragraph(edu_school_p)
+        else:
+            school_p, degree_p = edu_school_p, edu_degree_p
+            for edu in education:
+                _set_tab_line(school_p, str(edu.get("school") or ""), str(edu.get("location") or ""))
+                _set_tab_line(degree_p, str(edu.get("degree") or ""), str(edu.get("dates") or ""))
+                if edu is not education[-1]:
+                    new_school = _duplicate_paragraph_after(school_p, degree_p)
+                    new_degree = _duplicate_paragraph_after(degree_p, new_school)
+                    school_p, degree_p = new_school, new_degree
+
+    # --- Experience: groups of (org line, position line, N bullet lines).
+    # The template has blank spacer paragraphs between groups, so group
+    # boundaries are detected by paragraph style rather than a fixed size:
+    # an org/position line is Normal style, bullets are "List Paragraph".
+    exp_section = _paragraphs_between(doc, "Experience", "Leadership & Activities")
+    job_groups = []
+    i, n = 0, len(exp_section)
+    while i < n:
+        p = exp_section[i]
+        if not p.text.strip():
+            i += 1
+            continue
+        if i + 1 >= n:
+            break
+        org_p, pos_p = p, exp_section[i + 1]
+        i += 2
+        bullets = []
+        while i < n and (exp_section[i].style.name if exp_section[i].style else "") == "List Paragraph":
+            bullets.append(exp_section[i])
+            i += 1
+        job_groups.append([org_p, pos_p] + bullets)
+
+    experience = _as_list(data.get("experience"))
+    target = max(len(experience), 1)
+    while len(job_groups) < target:
+        last_group = job_groups[-1]
+        new_group = []
+        insert_after = last_group[-1]
+        for ref_p in last_group:
+            new_p = _duplicate_paragraph_after(ref_p, insert_after)
+            new_group.append(new_p)
+            insert_after = new_p
+        job_groups.append(new_group)
+    while len(job_groups) > target:
+        for p in job_groups.pop():
+            _remove_paragraph(p)
+
+    filled_experience = experience if experience else [{}]
+    for group, job in zip(job_groups, filled_experience):
+        org_p, pos_p, *bullet_paras = group
+        _set_tab_line(org_p, str(job.get("organization") or ""), str(job.get("location") or ""))
+        _set_tab_line(pos_p, str(job.get("title") or ""), str(job.get("dates") or ""))
+
+        bullets = job.get("bullets") or []
+        if not isinstance(bullets, list):
+            bullets = [bullets]
+        while bullets and len(bullet_paras) < len(bullets):
+            bullet_paras.append(_duplicate_paragraph(bullet_paras[-1]))
+        while len(bullet_paras) > max(len(bullets), 0):
+            _remove_paragraph(bullet_paras.pop())
+        for bp, text in zip(bullet_paras, bullets):
+            _set_para_text(bp, text)
+
+    # --- Leadership & Activities: not part of our data model, drop it ---
+    leadership_heading = _find_paragraph(doc, "Leadership & Activities")
+    leadership_section = _paragraphs_between(doc, "Leadership & Activities", "Skills & Interests [Note: Optional]")
+    for p in leadership_section:
+        _remove_paragraph(p)
+    if leadership_heading is not None:
+        _remove_paragraph(leadership_heading)
+
+    # --- Skills & Interests ---
+    skills_heading = _find_paragraph(doc, "Skills & Interests [Note: Optional]")
+    if skills_heading is not None:
+        for run in list(skills_heading.runs):
+            run._r.getparent().remove(run._r)
+        run = skills_heading.add_run("Skills & Interests")
+        run.bold = True
+
+    skills_raw = data.get("skills")
+    skills_text = ", ".join(str(s) for s in skills_raw) if isinstance(skills_raw, list) else str(skills_raw or "")
+
+    technical_p = _find_paragraph(
+        doc, "Technical: List computer software and programming languages and your level of fluency"
+    )
+    if technical_p is not None:
+        _set_labeled_line(technical_p, "Technical: ", skills_text)
+
+    for text in (
+        "Language: List foreign languages and your level of fluency",
+        "Laboratory: List scientific / research lab techniques or tools [If Applicable]",
+        "Interests: List activities you enjoy that may spark interview conversation",
+    ):
+        p = _find_paragraph(doc, text)
+        if p is not None:
+            _remove_paragraph(p)
+
+    doc.save(output_path)
+
+
+TEMPLATE_BUILDERS = {
+    "moderno": build_from_moderno,
+    "oficial": build_from_oficial,
+}
+
+
+def build_docx(template_key, data, output_path):
+    builder = TEMPLATE_BUILDERS.get(template_key, build_from_moderno)
+    builder(data, output_path)
+
+
+def send_cv_email(to_email, attachment_path, attachment_name, customer_name=""):
+    """Best-effort email delivery via Gmail SMTP. Returns True on success."""
+    import smtplib
+    from email.message import EmailMessage
+
+    gmail_address = os.environ.get("GMAIL_ADDRESS")
+    gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD")
+    if not gmail_address or not gmail_app_password:
+        return False
+
+    msg = EmailMessage()
+    msg["Subject"] = "Tu CV estilo Harvard"
+    msg["From"] = gmail_address
+    msg["To"] = to_email
+    greeting = f"Hola {customer_name}," if customer_name else "Hola,"
+    msg.set_content(
+        f"{greeting}\n\nAdjunto encontrarás tu hoja de vida en formato Harvard, lista en Word (.docx).\n\n"
+        f"¡Gracias por tu compra!"
+    )
+    with open(attachment_path, "rb") as f:
+        msg.add_attachment(
+            f.read(),
+            maintype="application",
+            subtype="vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename=attachment_name,
+        )
+
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+        server.starttls()
+        server.login(gmail_address, gmail_app_password)
+        server.send_message(msg)
+    return True

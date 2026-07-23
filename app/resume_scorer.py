@@ -37,13 +37,31 @@ STOPWORDS = {
     "you", "your", "our", "job", "role", "team",
 }
 
+HIGHLIGHTS_HEADERS = ["logros destacados", "logros", "principales logros", "highlights",
+                      "key achievements", "achievements"]
+
+DATE_TOKEN_RE = re.compile(
+    r"\b(?:ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic|"
+    r"jan|apr|aug|dec)\.?\s*20\d{2}\b", re.IGNORECASE
+)
+
+DESIGN_TIPS = [
+    "Usa una sola columna en toda la hoja de vida: los diseños de dos o más columnas pueden hacer "
+    "que un ATS lea el contenido en un orden desordenado.",
+    "Reserva un único color de acento (ej. azul oscuro o gris carbón) para los títulos de sección; "
+    "evita fondos de color o texto colocado dentro de imágenes.",
+    "Mantén interlineado y márgenes consistentes en todo el documento para una lectura más cómoda.",
+    "Si aplicarás a empresas multinacionales o plataformas ATS muy estrictas, prepara también una "
+    "versión sin fotografía.",
+    "Usa una tipografía sans-serif estándar (Calibri, Arial, Helvetica) en tamaño 10-12pt para el "
+    "cuerpo y 14-16pt para los títulos de sección.",
+]
+
 
 def extract_text_from_pdf(file_stream):
-    import pdfplumber
-    text_parts = []
-    with pdfplumber.open(file_stream) as pdf:
-        for page in pdf.pages:
-            text_parts.append(page.extract_text() or "")
+    from pypdf import PdfReader
+    reader = PdfReader(file_stream)
+    text_parts = [page.extract_text() or "" for page in reader.pages]
     return "\n".join(text_parts)
 
 
@@ -76,6 +94,24 @@ def _keywords_from_text(text, min_len=4):
     return {w for w in words if len(w) >= min_len and w not in STOPWORDS}
 
 
+def _despace(s):
+    return re.sub(r"\s+", "", s)
+
+
+def _text_contains(text_lower, text_despaced, keyword):
+    """Check for a keyword directly, or via a whitespace-collapsed match.
+
+    PDF templates with letter-spaced (tracked) headings extract as text with
+    stray spaces between letters (e.g. "E X P E R I E N C I A"), which breaks
+    a plain substring search here and in many real ATS parsers too.
+    """
+    if keyword in text_lower:
+        return True, False
+    if _despace(keyword) in text_despaced:
+        return True, True
+    return False, False
+
+
 def score_resume(text, job_description=None):
     text_lower = text.lower()
     words = text.split()
@@ -98,11 +134,30 @@ def score_resume(text, job_description=None):
         suggestions.append("Incluye un enlace a tu LinkedIn o portafolio.")
 
     # 2. Sections (20 pts, 5 c/u)
-    sections_found = {key: any(kw in text_lower for kw in kws) for key, kws in SECTION_HEADERS.items()}
+    text_despaced = _despace(text_lower)
+    sections_found = {}
+    spaced_headers_detected = False
+    for key, kws in SECTION_HEADERS.items():
+        found = False
+        via_spacing = False
+        for kw in kws:
+            found, via_spacing = _text_contains(text_lower, text_despaced, kw)
+            if found:
+                break
+        sections_found[key] = found
+        if found and via_spacing:
+            spaced_headers_detected = True
+
     sections_score = sum(5 for found in sections_found.values() if found)
     for key, found in sections_found.items():
         if not found:
             suggestions.append(f"Agrega una sección clara de '{key.capitalize()}' con encabezado estándar.")
+
+    if spaced_headers_detected:
+        issues.append("Se detectaron encabezados con letras separadas por espacios (texto con 'tracking' "
+                       "decorativo). Muchos sistemas ATS buscan coincidencias exactas de texto y no "
+                       "reconocerán esos encabezados; usa texto normal sin espaciado entre letras en los "
+                       "títulos de sección.")
 
     # 3. ATS formatting (20 pts)
     format_score = 20
@@ -124,6 +179,9 @@ def score_resume(text, job_description=None):
         format_score -= 4
         issues.append("Se detectaron tabulaciones, posible uso de tablas que los ATS no leen bien.")
 
+    if spaced_headers_detected:
+        format_score -= 5
+
     format_score = max(0, format_score)
 
     # 4. Content quality (20 pts)
@@ -141,6 +199,45 @@ def score_resume(text, job_description=None):
     if bullet_count < 3:
         suggestions.append("Organiza tu experiencia en viñetas cortas y concretas.")
 
+    # Content/structure recommendations beyond the point-based checks
+    content_suggestions = []
+
+    date_token_count = len(DATE_TOKEN_RE.findall(text))
+    if date_token_count > 12:
+        content_suggestions.append(
+            "Tu CV lista muchas experiencias laborales en detalle. Resume los cargos anteriores a "
+            "5-6 años en una sola línea (empresa, cargo, año) para priorizar y destacar tus roles "
+            "más recientes y relevantes."
+        )
+
+    has_highlights = any(_text_contains(text_lower, text_despaced, kw)[0] for kw in HIGHLIGHTS_HEADERS)
+    if not has_highlights:
+        content_suggestions.append(
+            "Agrega una sección breve de 'Logros Destacados' justo después del perfil, con tus "
+            "3 resultados más impactantes (con cifras), para captar la atención del reclutador en "
+            "los primeros segundos."
+        )
+
+    non_bullet_lines = [l.strip() for l in lines if not l.strip().startswith(("-", "•", "*", "●", "▪"))]
+    if non_bullet_lines:
+        longest_line_words = max(len(l.split()) for l in non_bullet_lines)
+        if longest_line_words > 45:
+            content_suggestions.append(
+                "Tu perfil profesional (u otro bloque de texto) es un párrafo muy denso. Conviértelo "
+                "en 2-3 líneas de resumen más 3-4 viñetas cortas de fortalezas clave; es más fácil de "
+                "escanear rápidamente."
+            )
+
+    quantified_bullets = len(re.findall(r"\d+%|\$\d+|\b\d{2,}\+?\b", text))
+    if bullet_count >= 5 and quantified_bullets < bullet_count // 2:
+        content_suggestions.append(
+            "No todos tus logros están cuantificados. Revisa cada viñeta y agrega una cifra o "
+            "resultado medible siempre que puedas (ej. 'reduje costos en 15%' en vez de solo "
+            "'reduje costos')."
+        )
+
+    suggestions.extend(content_suggestions)
+
     # 5. Keyword match vs job description (20 pts, optional)
     keyword_score = None
     matched_keywords = []
@@ -148,7 +245,8 @@ def score_resume(text, job_description=None):
     if job_description and job_description.strip():
         jd_keywords = _keywords_from_text(job_description)
         for kw in jd_keywords:
-            if kw in text_lower:
+            found, _ = _text_contains(text_lower, text_despaced, kw)
+            if found:
                 matched_keywords.append(kw)
             else:
                 missing_keywords.append(kw)
@@ -180,4 +278,5 @@ def score_resume(text, job_description=None):
         "missing_keywords": sorted(missing_keywords),
         "issues": issues,
         "suggestions": suggestions,
+        "design_tips": DESIGN_TIPS,
     }

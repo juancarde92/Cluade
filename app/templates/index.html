@@ -123,26 +123,18 @@
               <small>Elige una plantilla y la reescribimos con IA en formato Harvard, lista para descargar.</small>
             </div>
 
+            <p class="preview-hint">Vista previa real de cada plantilla (con contenido de ejemplo). Clic en la imagen para verla en grande.</p>
             <div class="template-picker">
               {% for key, tpl in harvard_templates.items() %}
               <label class="template-option">
                 <input type="radio" name="template_choice" value="{{ key }}" {{ 'checked' if loop.first }} required>
                 <span class="template-card">
-                  <span class="template-preview template-preview-{{ key }}" aria-hidden="true">
-                    {% if key == 'moderno' %}
-                      <span class="tp-name"></span>
-                      <span class="tp-line short center"></span>
-                      <span class="tp-heading"></span>
-                      <span class="tp-line"></span>
-                      <span class="tp-line"></span>
-                      <span class="tp-line short"></span>
-                    {% else %}
-                      <span class="tp-name center"></span>
-                      <span class="tp-line short center"></span>
-                      <span class="tp-heading center"></span>
-                      <span class="tp-row"><span class="tp-bar"></span><span class="tp-bar right"></span></span>
-                      <span class="tp-row"><span class="tp-bar"></span><span class="tp-bar right"></span></span>
-                    {% endif %}
+                  <span class="template-preview">
+                    <img src="{{ url_for('static', filename='previews/' + key + '_full.png') }}"
+                         alt="Vista previa de la plantilla {{ tpl.label }}" class="preview-img"
+                         data-lightbox-src="{{ url_for('static', filename='previews/' + key + '_full.png') }}"
+                         loading="lazy">
+                    <span class="preview-zoom" aria-hidden="true">Ampliar</span>
                   </span>
                   <strong>{{ tpl.label }}</strong>
                   <small>{{ tpl.description }}</small>
@@ -255,6 +247,11 @@
   </div>
 
   {% if result %}
+  <div class="lightbox" id="preview-lightbox" hidden>
+    <button type="button" class="lightbox-close" aria-label="Cerrar">×</button>
+    <img id="preview-lightbox-img" src="" alt="Vista previa ampliada de la plantilla">
+  </div>
+
   <script>
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
@@ -267,6 +264,27 @@
         }
       });
     });
+
+    (function () {
+      var lightbox = document.getElementById('preview-lightbox');
+      var lightboxImg = document.getElementById('preview-lightbox-img');
+      if (!lightbox) return;
+
+      document.querySelectorAll('[data-lightbox-src]').forEach(function (img) {
+        img.addEventListener('click', function (e) {
+          e.preventDefault();
+          lightboxImg.src = img.dataset.lightboxSrc;
+          lightbox.hidden = false;
+        });
+      });
+
+      function closeLightbox() { lightbox.hidden = true; lightboxImg.src = ''; }
+      lightbox.addEventListener('click', closeLightbox);
+      document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeLightbox();
+      });
+    })();
   </script>
   {% endif %}
 </body>

@@ -39,11 +39,9 @@ STOPWORDS = {
 
 
 def extract_text_from_pdf(file_stream):
-    import pdfplumber
-    text_parts = []
-    with pdfplumber.open(file_stream) as pdf:
-        for page in pdf.pages:
-            text_parts.append(page.extract_text() or "")
+    from pypdf import PdfReader
+    reader = PdfReader(file_stream)
+    text_parts = [page.extract_text() or "" for page in reader.pages]
     return "\n".join(text_parts)
 
 

@@ -8,6 +8,7 @@ from resume_scorer import extract_text, score_resume
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+WHATSAPP_NUMBER = os.environ.get("WHATSAPP_NUMBER", "573185572550")
 
 
 @app.route("/", methods=["GET"])
@@ -39,7 +40,14 @@ def analyze():
                                 error="No se pudo extraer texto del archivo. Verifica que no sea una imagen escaneada.")
 
     result = score_resume(text, job_description)
-    return render_template("index.html", result=result, filename=file.filename, error=None)
+    whatsapp_message = (
+        f"Hola, acabo de calificar mi hoja de vida con el Calificador ATS y obtuve "
+        f"{result['score']}/10. Quiero asesoría para mejorarla."
+    )
+    return render_template(
+        "index.html", result=result, filename=file.filename, error=None,
+        whatsapp_number=WHATSAPP_NUMBER, whatsapp_message=whatsapp_message,
+    )
 
 
 if __name__ == "__main__":

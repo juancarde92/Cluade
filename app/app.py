@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 import requests
 from flask import Flask, redirect, render_template, request, send_file
 
+from harvard_cv import TEMPLATE_CHOICES, build_docx, rewrite_resume_harvard, send_cv_email
 from resume_scorer import extract_text, score_resume
 
 app = Flask(__name__)
@@ -76,7 +77,7 @@ def analyze():
         "index.html", result=result, filename=file.filename, error=None,
         whatsapp_number=WHATSAPP_NUMBER, whatsapp_message=whatsapp_message,
         harvard_token=token, harvard_price=HARVARD_CV_PRICE_COP,
-        harvard_enabled=_harvard_enabled(),
+        harvard_enabled=_harvard_enabled(), harvard_templates=TEMPLATE_CHOICES,
     )
 
 
@@ -88,6 +89,24 @@ def checkout(token):
     if token not in PENDING_RESUMES:
         return render_template("index.html", result=None,
                                 error="Tu sesión expiró. Vuelve a subir tu CV para generar la versión Harvard.")
+
+    template_choice = request.form.get("template_choice", "")
+    full_name = request.form.get("full_name", "").strip()
+    email = request.form.get("email", "").strip()
+    phone = request.form.get("phone", "").strip()
+
+    if template_choice not in TEMPLATE_CHOICES:
+        return render_template("index.html", result=None, error="Selecciona una plantilla de CV válida.")
+    if not full_name or not email or not phone:
+        return render_template("index.html", result=None,
+                                error="Completa tu nombre completo, correo y celular para continuar.")
+
+    PENDING_RESUMES[token].update({
+        "template_choice": template_choice,
+        "full_name": full_name,
+        "email": email,
+        "phone": phone,
+    })
 
     amount_in_cents = HARVARD_CV_PRICE_COP * 100
     currency = "COP"
@@ -102,6 +121,9 @@ def checkout(token):
         "reference": token,
         "signature:integrity": signature,
         "redirect-url": f"{BASE_URL}/harvard/success",
+        "customer-data:email": email,
+        "customer-data:full-name": full_name,
+        "customer-data:phone-number": phone,
     }
     return redirect(f"https://checkout.wompi.co/p/?{urlencode(params)}", code=303)
 
@@ -132,12 +154,10 @@ def harvard_success():
     # customer who already paid can just reload this URL to retry after a
     # transient failure instead of having to pay again.
     entry = PENDING_RESUMES.get(token)
-    if not entry:
+    if not entry or "template_choice" not in entry:
         return render_template("index.html", result=None,
                                 error="No se encontró tu CV original. Escríbenos por WhatsApp con tu "
                                       "comprobante de pago para resolverlo.")
-
-    from harvard_cv import build_harvard_docx, rewrite_resume_harvard
 
     try:
         data = rewrite_resume_harvard(entry["text"])
@@ -148,12 +168,17 @@ def harvard_success():
 
     try:
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-            build_harvard_docx(data, tmp.name)
+            build_docx(entry["template_choice"], data, tmp.name)
             tmp_path = tmp.name
     except Exception:
         return render_template("index.html", result=None,
                                 error="Se procesó tu pago pero no pudimos armar el archivo docx. "
                                       "Recarga esta página para reintentar, o escríbenos por WhatsApp.")
+
+    try:
+        send_cv_email(entry["email"], tmp_path, "CV_Harvard.docx", entry.get("full_name", ""))
+    except Exception:
+        pass  # best-effort: the direct download below still works either way
 
     PENDING_RESUMES.pop(token, None)
     return send_file(tmp_path, as_attachment=True, download_name="CV_Harvard.docx")

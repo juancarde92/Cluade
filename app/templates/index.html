@@ -58,8 +58,49 @@
           <form action="{{ url_for('checkout', token=harvard_token) }}" method="post" class="harvard-cta">
             <div class="harvard-cta-text">
               <strong>¿Quieres una versión nueva y mejorada de tu CV?</strong>
-              <small>Generamos un CV reescrito en formato Harvard, listo en Word (.docx)</small>
+              <small>Elige una plantilla, la reescribimos con IA en formato Harvard y te la enviamos también por correo.</small>
             </div>
+
+            <div class="template-picker">
+              {% for key, tpl in harvard_templates.items() %}
+              <label class="template-option">
+                <input type="radio" name="template_choice" value="{{ key }}" {{ 'checked' if loop.first }} required>
+                <span class="template-card">
+                  <span class="template-preview template-preview-{{ key }}" aria-hidden="true">
+                    {% if key == 'moderno' %}
+                      <span class="tp-name"></span>
+                      <span class="tp-line short center"></span>
+                      <span class="tp-heading"></span>
+                      <span class="tp-line"></span>
+                      <span class="tp-line"></span>
+                      <span class="tp-line short"></span>
+                    {% else %}
+                      <span class="tp-name center"></span>
+                      <span class="tp-line short center"></span>
+                      <span class="tp-heading center"></span>
+                      <span class="tp-row"><span class="tp-bar"></span><span class="tp-bar right"></span></span>
+                      <span class="tp-row"><span class="tp-bar"></span><span class="tp-bar right"></span></span>
+                    {% endif %}
+                  </span>
+                  <strong>{{ tpl.label }}</strong>
+                  <small>{{ tpl.description }}</small>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+
+            <div class="harvard-fields">
+              <label>Nombre completo
+                <input type="text" name="full_name" required placeholder="Tu nombre completo">
+              </label>
+              <label>Correo electrónico <span class="optional">(ahí te enviaremos el CV)</span>
+                <input type="email" name="email" required placeholder="tucorreo@email.com">
+              </label>
+              <label>Celular
+                <input type="tel" name="phone" required placeholder="+57 300 000 0000">
+              </label>
+            </div>
+
             <button type="submit" class="harvard-button">
               Generar CV Harvard · ${{ '{:,}'.format(harvard_price) }} COP
             </button>

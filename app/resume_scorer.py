@@ -37,6 +37,26 @@ STOPWORDS = {
     "you", "your", "our", "job", "role", "team",
 }
 
+HIGHLIGHTS_HEADERS = ["logros destacados", "logros", "principales logros", "highlights",
+                      "key achievements", "achievements"]
+
+DATE_TOKEN_RE = re.compile(
+    r"\b(?:ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic|"
+    r"jan|apr|aug|dec)\.?\s*20\d{2}\b", re.IGNORECASE
+)
+
+DESIGN_TIPS = [
+    "Usa una sola columna en toda la hoja de vida: los diseños de dos o más columnas pueden hacer "
+    "que un ATS lea el contenido en un orden desordenado.",
+    "Reserva un único color de acento (ej. azul oscuro o gris carbón) para los títulos de sección; "
+    "evita fondos de color o texto colocado dentro de imágenes.",
+    "Mantén interlineado y márgenes consistentes en todo el documento para una lectura más cómoda.",
+    "Si aplicarás a empresas multinacionales o plataformas ATS muy estrictas, prepara también una "
+    "versión sin fotografía.",
+    "Usa una tipografía sans-serif estándar (Calibri, Arial, Helvetica) en tamaño 10-12pt para el "
+    "cuerpo y 14-16pt para los títulos de sección.",
+]
+
 
 def extract_text_from_pdf(file_stream):
     from pypdf import PdfReader
@@ -179,6 +199,45 @@ def score_resume(text, job_description=None):
     if bullet_count < 3:
         suggestions.append("Organiza tu experiencia en viñetas cortas y concretas.")
 
+    # Content/structure recommendations beyond the point-based checks
+    content_suggestions = []
+
+    date_token_count = len(DATE_TOKEN_RE.findall(text))
+    if date_token_count > 12:
+        content_suggestions.append(
+            "Tu CV lista muchas experiencias laborales en detalle. Resume los cargos anteriores a "
+            "5-6 años en una sola línea (empresa, cargo, año) para priorizar y destacar tus roles "
+            "más recientes y relevantes."
+        )
+
+    has_highlights = any(_text_contains(text_lower, text_despaced, kw)[0] for kw in HIGHLIGHTS_HEADERS)
+    if not has_highlights:
+        content_suggestions.append(
+            "Agrega una sección breve de 'Logros Destacados' justo después del perfil, con tus "
+            "3 resultados más impactantes (con cifras), para captar la atención del reclutador en "
+            "los primeros segundos."
+        )
+
+    non_bullet_lines = [l.strip() for l in lines if not l.strip().startswith(("-", "•", "*", "●", "▪"))]
+    if non_bullet_lines:
+        longest_line_words = max(len(l.split()) for l in non_bullet_lines)
+        if longest_line_words > 45:
+            content_suggestions.append(
+                "Tu perfil profesional (u otro bloque de texto) es un párrafo muy denso. Conviértelo "
+                "en 2-3 líneas de resumen más 3-4 viñetas cortas de fortalezas clave; es más fácil de "
+                "escanear rápidamente."
+            )
+
+    quantified_bullets = len(re.findall(r"\d+%|\$\d+|\b\d{2,}\+?\b", text))
+    if bullet_count >= 5 and quantified_bullets < bullet_count // 2:
+        content_suggestions.append(
+            "No todos tus logros están cuantificados. Revisa cada viñeta y agrega una cifra o "
+            "resultado medible siempre que puedas (ej. 'reduje costos en 15%' en vez de solo "
+            "'reduje costos')."
+        )
+
+    suggestions.extend(content_suggestions)
+
     # 5. Keyword match vs job description (20 pts, optional)
     keyword_score = None
     matched_keywords = []
@@ -219,4 +278,5 @@ def score_resume(text, job_description=None):
         "missing_keywords": sorted(missing_keywords),
         "issues": issues,
         "suggestions": suggestions,
+        "design_tips": DESIGN_TIPS,
     }

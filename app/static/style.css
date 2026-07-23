@@ -137,10 +137,16 @@ table.breakdown td:last-child {
   font-weight: 600;
 }
 
-.sections-list, .issues-list, .suggestions-list {
+.sections-list, .issues-list, .suggestions-list, .design-list {
   list-style: none;
   padding: 0;
   margin: 0 0 16px;
+}
+
+.design-list li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
 }
 
 .sections-list li {

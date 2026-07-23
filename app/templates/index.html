@@ -86,6 +86,13 @@
             <li>¡Tu CV cumple con los criterios básicos evaluados!</li>
           {% endfor %}
         </ul>
+
+        <h3>Recomendaciones de diseño y presentación</h3>
+        <ul class="design-list">
+          {% for tip in result.design_tips %}
+            <li>{{ tip }}</li>
+          {% endfor %}
+        </ul>
       </section>
     {% endif %}
   </div>

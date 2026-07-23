@@ -9,12 +9,62 @@
 <body>
   <div class="page">
     <header class="hero">
-      <p class="eyebrow">Optimización para reclutadores y sistemas ATS</p>
-      <h1>Calificador de Hojas de Vida</h1>
-      <p class="subtitle">Sube tu CV y obtén una calificación del 1 al 10 sobre qué tan visible y adecuado es para filtros ATS y reclutadores de talento.</p>
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">Optimización para reclutadores y sistemas ATS</p>
+          <h1>Calificador de Hojas de Vida</h1>
+          <p class="subtitle">Sube tu CV y obtén una calificación del 1 al 10 sobre qué tan visible y adecuado es para filtros ATS y reclutadores de talento.</p>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="hero-doc">
+            <span class="hero-doc-line w70"></span>
+            <span class="hero-doc-line w40"></span>
+            <span class="hero-doc-line w90"></span>
+            <span class="hero-doc-line w60"></span>
+            <span class="hero-doc-line w80"></span>
+          </div>
+          <div class="hero-badge">
+            <span class="hero-check">✓</span>
+          </div>
+        </div>
+      </div>
     </header>
 
     <div class="container">
+      {% if not result and not harvard_success %}
+      <section class="trust-band">
+        <div class="trust-stat">
+          <span class="trust-number">8+</span>
+          <span class="trust-label">Años de experiencia en consultoría de proyectos</span>
+        </div>
+        <div class="trust-stat">
+          <span class="trust-number">50+</span>
+          <span class="trust-label">Empresas asesoradas</span>
+        </div>
+        <div class="trust-stat">
+          <span class="trust-number">100+</span>
+          <span class="trust-label">Profesionales acompañados</span>
+        </div>
+      </section>
+
+      <section class="example-card">
+        <p class="example-label">Ejemplo ilustrativo</p>
+        <h3 class="example-title">Así se ve una mejora típica</h3>
+        <div class="example-row">
+          <div class="example-before">
+            <div class="mini-score low">5.4</div>
+            <span>CV original</span>
+          </div>
+          <div class="example-arrow" aria-hidden="true">→</div>
+          <div class="example-after">
+            <div class="mini-score good">9.1</div>
+            <span>Con las mejoras sugeridas</span>
+          </div>
+        </div>
+        <p class="example-note">Resultado ilustrativo basado en los criterios que evalúa esta herramienta (contacto, secciones, formato ATS, contenido y palabras clave).</p>
+      </section>
+      {% endif %}
+
       <form action="/analyze" method="post" enctype="multipart/form-data" class="upload-form">
         <label class="file-label" for="resume">
           <span class="file-icon" aria-hidden="true"></span>
@@ -70,7 +120,7 @@
           <form action="{{ url_for('checkout', token=harvard_token) }}" method="post" class="harvard-cta">
             <div class="harvard-cta-text">
               <strong>¿Quieres una versión nueva y mejorada de tu CV?</strong>
-              <small>Elige una plantilla, la reescribimos con IA en formato Harvard y te la enviamos también por correo.</small>
+              <small>Elige una plantilla y la reescribimos con IA en formato Harvard, lista para descargar.</small>
             </div>
 
             <div class="template-picker">

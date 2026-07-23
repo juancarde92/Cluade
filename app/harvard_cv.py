@@ -543,34 +543,40 @@ def build_docx(template_key, data, output_path):
 
 
 def send_cv_email(to_email, attachment_path, attachment_name, customer_name=""):
-    """Best-effort email delivery via Gmail SMTP. Returns True on success."""
-    import smtplib
-    from email.message import EmailMessage
+    """Best-effort email delivery via the Brevo HTTP API. Returns True on success.
 
-    gmail_address = os.environ.get("GMAIL_ADDRESS")
-    gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD")
-    if not gmail_address or not gmail_app_password:
+    Uses HTTPS instead of SMTP: Render (and most free hosting tiers) blocks
+    outbound SMTP ports (25/465/587) to fight spam, which made a raw
+    smtplib connection hang until the platform killed the worker.
+    """
+    import base64
+
+    import requests
+
+    api_key = os.environ.get("BREVO_API_KEY")
+    sender_email = os.environ.get("BREVO_SENDER_EMAIL")
+    if not api_key or not sender_email:
         return False
 
-    msg = EmailMessage()
-    msg["Subject"] = "Tu CV estilo Harvard"
-    msg["From"] = gmail_address
-    msg["To"] = to_email
     greeting = f"Hola {customer_name}," if customer_name else "Hola,"
-    msg.set_content(
-        f"{greeting}\n\nAdjunto encontrarás tu hoja de vida en formato Harvard, lista en Word (.docx).\n\n"
-        f"¡Gracias por tu compra!"
-    )
     with open(attachment_path, "rb") as f:
-        msg.add_attachment(
-            f.read(),
-            maintype="application",
-            subtype="vnd.openxmlformats-officedocument.wordprocessingml.document",
-            filename=attachment_name,
-        )
+        content_b64 = base64.b64encode(f.read()).decode("ascii")
 
-    with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-        server.starttls()
-        server.login(gmail_address, gmail_app_password)
-        server.send_message(msg)
+    payload = {
+        "sender": {"email": sender_email, "name": "Calificador de Hojas de Vida"},
+        "to": [{"email": to_email, "name": customer_name or to_email}],
+        "subject": "Tu CV estilo Harvard",
+        "textContent": (
+            f"{greeting}\n\nAdjunto encontrarás tu hoja de vida en formato Harvard, "
+            f"lista en Word (.docx).\n\n¡Gracias por tu compra!"
+        ),
+        "attachment": [{"content": content_b64, "name": attachment_name}],
+    }
+    resp = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={"api-key": api_key, "Content-Type": "application/json"},
+        json=payload,
+        timeout=20,
+    )
+    resp.raise_for_status()
     return True

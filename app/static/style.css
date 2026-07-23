@@ -416,6 +416,37 @@ button:active {
   animation: fadeInUp 0.5s ease both;
 }
 
+.harvard-confirmation {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.confirmation-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--good);
+  color: white;
+  font-size: 1.6rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.harvard-confirmation h2 { margin: 0; font-size: 1.2rem; }
+.confirmation-text { color: var(--muted); margin: 0; }
+
+.download-button {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+  margin-top: 8px;
+}
+
 .results-header {
   display: flex;
   align-items: center;

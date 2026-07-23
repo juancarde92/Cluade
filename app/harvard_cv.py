@@ -54,7 +54,9 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin explicación adicion
 def rewrite_resume_harvard(raw_text):
     import google.generativeai as genai
 
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+    # transport="rest" avoids loading grpcio, which has a heavy memory
+    # footprint that can OOM-kill a low-memory deployment (e.g. Render free tier).
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"], transport="rest")
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     model = genai.GenerativeModel(model_name, system_instruction=SYSTEM_PROMPT)
     response = model.generate_content(

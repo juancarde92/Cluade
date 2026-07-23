@@ -142,9 +142,14 @@ def harvard_success():
                                 error=f"Se procesó tu pago pero no pudimos generar el CV: {exc}. "
                                       f"Escríbenos por WhatsApp para resolverlo.")
 
-    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-        build_harvard_docx(data, tmp.name)
-        tmp_path = tmp.name
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+            build_harvard_docx(data, tmp.name)
+            tmp_path = tmp.name
+    except Exception:
+        return render_template("index.html", result=None,
+                                error="Se procesó tu pago pero no pudimos armar el archivo docx. "
+                                      "Escríbenos por WhatsApp para resolverlo.")
 
     return send_file(tmp_path, as_attachment=True, download_name="CV_Harvard.docx")
 

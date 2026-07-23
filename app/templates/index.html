@@ -7,94 +7,129 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Calificador de Hojas de Vida ATS</h1>
-      <p class="subtitle">Sube tu CV y obtén una calificación del 1 al 10 sobre qué tan visible y adecuado es para filtros ATS y reclutadores.</p>
+  <div class="page">
+    <header class="hero">
+      <p class="eyebrow">Optimización para reclutadores y sistemas ATS</p>
+      <h1>Calificador de Hojas de Vida</h1>
+      <p class="subtitle">Sube tu CV y obtén una calificación del 1 al 10 sobre qué tan visible y adecuado es para filtros ATS y reclutadores de talento.</p>
     </header>
 
-    <form action="/analyze" method="post" enctype="multipart/form-data" class="upload-form">
-      <label class="file-label" for="resume">
-        <span>Selecciona tu CV (PDF, DOCX o TXT)</span>
-        <input type="file" id="resume" name="resume" accept=".pdf,.docx,.txt" required>
-      </label>
+    <div class="container">
+      <form action="/analyze" method="post" enctype="multipart/form-data" class="upload-form">
+        <label class="file-label" for="resume">
+          <span class="file-icon" aria-hidden="true"></span>
+          <span class="file-text">
+            <strong>Selecciona tu CV</strong>
+            <small>PDF, DOCX o TXT</small>
+          </span>
+          <input type="file" id="resume" name="resume" accept=".pdf,.docx,.txt" required>
+        </label>
 
-      <label class="jd-label" for="job_description">
-        Oferta de trabajo (opcional, mejora la precisión de la calificación)
-        <textarea id="job_description" name="job_description" rows="5"
-          placeholder="Pega aquí la descripción del puesto para comparar palabras clave..."></textarea>
-      </label>
+        <label class="jd-label" for="job_description">
+          Oferta de trabajo <span class="optional">(opcional, mejora la precisión de la calificación)</span>
+          <textarea id="job_description" name="job_description" rows="5"
+            placeholder="Pega aquí la descripción del puesto para comparar palabras clave..."></textarea>
+        </label>
 
-      <button type="submit">Calificar mi CV</button>
-    </form>
+        <button type="submit">Calificar mi CV</button>
+      </form>
 
-    {% if error %}
-      <div class="alert error">{{ error }}</div>
-    {% endif %}
+      {% if error %}
+        <div class="alert error">{{ error }}</div>
+      {% endif %}
 
-    {% if result %}
-      <section class="results">
-        <h2>Resultado para: {{ filename }}</h2>
+      {% if result %}
+        <section class="results">
+          <div class="results-header">
+            <div>
+              <p class="results-label">Resultado para</p>
+              <h2>{{ filename }}</h2>
+            </div>
+            <div class="score-circle score-{{ 'good' if result.score >= 7.5 else ('mid' if result.score >= 5 else 'low') }}"
+                 style="--pct: {{ (result.score * 10) | round(0, 'floor') }};">
+              <div class="score-circle-inner">
+                <span class="score-value">{{ result.score }}</span>
+                <span class="score-max">/10</span>
+              </div>
+            </div>
+          </div>
 
-        <div class="score-circle score-{{ 'good' if result.score >= 7.5 else ('mid' if result.score >= 5 else 'low') }}">
-          <span class="score-value">{{ result.score }}</span>
-          <span class="score-max">/10</span>
-        </div>
+          <h3>Desglose de puntuación</h3>
+          <div class="breakdown">
+            {% set rows = [
+              ('Información de contacto', result.breakdown.contacto, 10),
+              ('Secciones estándar', result.breakdown.secciones, 20),
+              ('Formato compatible con ATS', result.breakdown.formato_ats, 20),
+              ('Calidad del contenido', result.breakdown.calidad_contenido, 20),
+            ] %}
+            {% if result.breakdown.coincidencia_oferta is not none %}
+              {% set rows = rows + [('Coincidencia con la oferta', result.breakdown.coincidencia_oferta, 20)] %}
+            {% endif %}
+            {% for label, value, max in rows %}
+            <div class="bar-row">
+              <div class="bar-row-top">
+                <span>{{ label }}</span>
+                <span class="bar-value">{{ value }} / {{ max }}</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ (value / max * 100) | round(0) }}%;"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
 
-        <h3>Desglose de puntuación</h3>
-        <table class="breakdown">
-          <tr><td>Información de contacto</td><td>{{ result.breakdown.contacto }} / 10</td></tr>
-          <tr><td>Secciones estándar</td><td>{{ result.breakdown.secciones }} / 20</td></tr>
-          <tr><td>Formato compatible con ATS</td><td>{{ result.breakdown.formato_ats }} / 20</td></tr>
-          <tr><td>Calidad del contenido</td><td>{{ result.breakdown.calidad_contenido }} / 20</td></tr>
-          {% if result.breakdown.coincidencia_oferta is not none %}
-          <tr><td>Coincidencia con la oferta</td><td>{{ result.breakdown.coincidencia_oferta }} / 20</td></tr>
+          <h3>Secciones detectadas</h3>
+          <div class="chip-list">
+            {% for name, found in result.sections_found.items() %}
+              <span class="chip {{ 'yes' if found else 'no' }}">{{ '✓' if found else '✕' }} {{ name.capitalize() }}</span>
+            {% endfor %}
+          </div>
+
+          {% if result.matched_keywords %}
+          <h3>Palabras clave encontradas de la oferta</h3>
+          <div class="chip-list">
+            {% for kw in result.matched_keywords %}
+              <span class="chip yes">{{ kw }}</span>
+            {% endfor %}
+          </div>
           {% endif %}
-        </table>
 
-        <h3>Secciones detectadas</h3>
-        <ul class="sections-list">
-          {% for name, found in result.sections_found.items() %}
-            <li class="{{ 'yes' if found else 'no' }}">{{ 'OK' if found else 'Falta' }} — {{ name.capitalize() }}</li>
-          {% endfor %}
-        </ul>
+          {% if result.missing_keywords %}
+          <h3>Palabras clave ausentes de la oferta</h3>
+          <div class="chip-list">
+            {% for kw in result.missing_keywords %}
+              <span class="chip no">{{ kw }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
 
-        {% if result.matched_keywords %}
-        <h3>Palabras clave encontradas de la oferta</h3>
-        <p class="keywords matched">{{ result.matched_keywords | join(', ') }}</p>
-        {% endif %}
+          {% if result.issues %}
+          <h3>Problemas detectados</h3>
+          <ul class="card-list issues-list">
+            {% for issue in result.issues %}
+              <li>{{ issue }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
 
-        {% if result.missing_keywords %}
-        <h3>Palabras clave ausentes de la oferta</h3>
-        <p class="keywords missing">{{ result.missing_keywords | join(', ') }}</p>
-        {% endif %}
+          <h3>Sugerencias de mejora</h3>
+          <ul class="card-list suggestions-list">
+            {% for s in result.suggestions %}
+              <li>{{ s }}</li>
+            {% else %}
+              <li>¡Tu CV cumple con los criterios básicos evaluados!</li>
+            {% endfor %}
+          </ul>
 
-        {% if result.issues %}
-        <h3>Problemas detectados</h3>
-        <ul class="issues-list">
-          {% for issue in result.issues %}
-            <li>{{ issue }}</li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-
-        <h3>Sugerencias de mejora</h3>
-        <ul class="suggestions-list">
-          {% for s in result.suggestions %}
-            <li>{{ s }}</li>
-          {% else %}
-            <li>¡Tu CV cumple con los criterios básicos evaluados!</li>
-          {% endfor %}
-        </ul>
-
-        <h3>Recomendaciones de diseño y presentación</h3>
-        <ul class="design-list">
-          {% for tip in result.design_tips %}
-            <li>{{ tip }}</li>
-          {% endfor %}
-        </ul>
-      </section>
-    {% endif %}
+          <h3>Recomendaciones de diseño y presentación</h3>
+          <ul class="card-list design-list">
+            {% for tip in result.design_tips %}
+              <li>{{ tip }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </div>
   </div>
 </body>
 </html>

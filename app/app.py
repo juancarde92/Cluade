@@ -31,6 +31,9 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # the Wompi redirect back to /harvard/success for the same visitor.
 PENDING_RESUMES = {}
 
+# Generated docx files waiting to be downloaded from the confirmation page.
+READY_FILES = {}
+
 
 def _harvard_enabled():
     return bool(WOMPI_PUBLIC_KEY and WOMPI_INTEGRITY_SECRET and GEMINI_API_KEY)
@@ -175,12 +178,31 @@ def harvard_success():
                                 error="Se procesó tu pago pero no pudimos armar el archivo docx. "
                                       "Recarga esta página para reintentar, o escríbenos por WhatsApp.")
 
+    email_sent = False
+    email_error = None
     try:
-        send_cv_email(entry["email"], tmp_path, "CV_Harvard.docx", entry.get("full_name", ""))
-    except Exception:
-        pass  # best-effort: the direct download below still works either way
+        email_sent = send_cv_email(entry["email"], tmp_path, "CV_Harvard.docx", entry.get("full_name", ""))
+    except Exception as exc:
+        email_error = str(exc)
+
+    file_token = uuid.uuid4().hex
+    READY_FILES[file_token] = tmp_path
 
     PENDING_RESUMES.pop(token, None)
+    return render_template(
+        "index.html", result=None, error=None,
+        harvard_success=True, download_token=file_token,
+        customer_name=entry.get("full_name", ""), customer_email=entry.get("email", ""),
+        email_sent=email_sent, email_error=email_error,
+    )
+
+
+@app.route("/harvard/download/<file_token>")
+def harvard_download(file_token):
+    tmp_path = READY_FILES.get(file_token)
+    if not tmp_path or not os.path.exists(tmp_path):
+        return render_template("index.html", result=None,
+                                error="Ese enlace de descarga ya no está disponible. Escríbenos por WhatsApp.")
     return send_file(tmp_path, as_attachment=True, download_name="CV_Harvard.docx")
 
 

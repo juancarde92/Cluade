@@ -1,9 +1,11 @@
+import hashlib
 import io
 import os
 import tempfile
 import uuid
+from urllib.parse import urlencode
 
-import stripe
+import requests
 from flask import Flask, redirect, render_template, request, send_file
 
 from resume_scorer import extract_text, score_resume
@@ -13,16 +15,24 @@ app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 WHATSAPP_NUMBER = os.environ.get("WHATSAPP_NUMBER", "573185572550")
 
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
+WOMPI_PUBLIC_KEY = os.environ.get("WOMPI_PUBLIC_KEY")
+WOMPI_INTEGRITY_SECRET = os.environ.get("WOMPI_INTEGRITY_SECRET")
+WOMPI_API_BASE = (
+    "https://sandbox.wompi.co/v1" if (WOMPI_PUBLIC_KEY or "").startswith("pub_test_")
+    else "https://production.wompi.co/v1"
+)
 HARVARD_CV_PRICE_COP = int(os.environ.get("HARVARD_CV_PRICE_COP", "25000"))
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
-if STRIPE_SECRET_KEY:
-    stripe.api_key = STRIPE_SECRET_KEY
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # In-memory store for resumes awaiting payment. A single-process deployment
 # (e.g. Render free tier) keeps this alive between the /analyze request and
-# the Stripe redirect back to /harvard/success for the same visitor.
+# the Wompi redirect back to /harvard/success for the same visitor.
 PENDING_RESUMES = {}
+
+
+def _harvard_enabled():
+    return bool(WOMPI_PUBLIC_KEY and WOMPI_INTEGRITY_SECRET and GEMINI_API_KEY)
 
 
 @app.route("/", methods=["GET"])
@@ -66,55 +76,58 @@ def analyze():
         "index.html", result=result, filename=file.filename, error=None,
         whatsapp_number=WHATSAPP_NUMBER, whatsapp_message=whatsapp_message,
         harvard_token=token, harvard_price=HARVARD_CV_PRICE_COP,
-        harvard_enabled=bool(STRIPE_SECRET_KEY and os.environ.get("ANTHROPIC_API_KEY")),
+        harvard_enabled=_harvard_enabled(),
     )
 
 
 @app.route("/checkout/<token>", methods=["POST"])
 def checkout(token):
-    if not STRIPE_SECRET_KEY or not os.environ.get("ANTHROPIC_API_KEY"):
+    if not _harvard_enabled():
         return render_template("index.html", result=None,
                                 error="La generación de CV estilo Harvard no está disponible todavía.")
     if token not in PENDING_RESUMES:
         return render_template("index.html", result=None,
                                 error="Tu sesión expiró. Vuelve a subir tu CV para generar la versión Harvard.")
 
-    try:
-        session = stripe.checkout.Session.create(
-            mode="payment",
-            line_items=[{
-                "price_data": {
-                    "currency": "cop",
-                    "product_data": {"name": "CV estilo Harvard (formato DOCX)"},
-                    "unit_amount": HARVARD_CV_PRICE_COP * 100,
-                },
-                "quantity": 1,
-            }],
-            metadata={"token": token},
-            success_url=f"{BASE_URL}/harvard/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{BASE_URL}/",
-        )
-    except Exception:
-        return render_template("index.html", result=None,
-                                error="No se pudo iniciar el pago. Intenta de nuevo en unos minutos.")
-    return redirect(session.url, code=303)
+    amount_in_cents = HARVARD_CV_PRICE_COP * 100
+    currency = "COP"
+    signature = hashlib.sha256(
+        f"{token}{amount_in_cents}{currency}{WOMPI_INTEGRITY_SECRET}".encode()
+    ).hexdigest()
+
+    params = {
+        "public-key": WOMPI_PUBLIC_KEY,
+        "currency": currency,
+        "amount-in-cents": amount_in_cents,
+        "reference": token,
+        "signature:integrity": signature,
+        "redirect-url": f"{BASE_URL}/harvard/success",
+    }
+    return redirect(f"https://checkout.wompi.co/p/?{urlencode(params)}", code=303)
 
 
 @app.route("/harvard/success")
 def harvard_success():
-    session_id = request.args.get("session_id")
-    if not session_id:
-        return render_template("index.html", result=None, error="Sesión de pago inválida.")
+    transaction_id = request.args.get("id")
+    if not transaction_id:
+        return render_template("index.html", result=None, error="Pago inválido o cancelado.")
 
     try:
-        session = stripe.checkout.Session.retrieve(session_id)
+        resp = requests.get(
+            f"{WOMPI_API_BASE}/transactions/{transaction_id}",
+            headers={"Authorization": f"Bearer {WOMPI_PUBLIC_KEY}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        transaction = resp.json()["data"]
     except Exception:
         return render_template("index.html", result=None, error="No se pudo verificar el pago.")
 
-    if session.payment_status != "paid":
-        return render_template("index.html", result=None, error="El pago no se completó.")
+    if transaction.get("status") != "APPROVED":
+        return render_template("index.html", result=None,
+                                error=f"El pago no se completó (estado: {transaction.get('status', 'desconocido')}).")
 
-    token = (session.metadata or {}).get("token")
+    token = transaction.get("reference")
     entry = PENDING_RESUMES.pop(token, None)
     if not entry:
         return render_template("index.html", result=None,

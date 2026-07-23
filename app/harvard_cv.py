@@ -38,22 +38,15 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin explicación adicion
 
 
 def rewrite_resume_harvard(raw_text):
-    from anthropic import Anthropic
+    import google.generativeai as genai
 
-    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    message = client.messages.create(
-        model="claude-sonnet-5",
-        max_tokens=3000,
-        system=SYSTEM_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Aquí está el texto extraído de un CV (puede tener errores de formato "
-                f"por la extracción):\n\n---\n{raw_text}\n---\n\n{RESPONSE_SCHEMA_HINT}"
-            ),
-        }],
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+    model = genai.GenerativeModel("gemini-2.0-flash", system_instruction=SYSTEM_PROMPT)
+    response = model.generate_content(
+        f"Aquí está el texto extraído de un CV (puede tener errores de formato "
+        f"por la extracción):\n\n---\n{raw_text}\n---\n\n{RESPONSE_SCHEMA_HINT}"
     )
-    text = message.content[0].text.strip()
+    text = response.text.strip()
     text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
     return json.loads(text)
 

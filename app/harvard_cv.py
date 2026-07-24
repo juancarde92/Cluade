@@ -23,6 +23,61 @@ TEMPLATE_CHOICES = {
     },
 }
 
+# Fixed section-header translations for the two bundled templates. Kept as a
+# static table (not AI-generated) so headers stay consistent and don't
+# depend on the model echoing an exact schema back.
+LANGUAGES = {
+    "es": {
+        "label": "Español",
+        "prompt_name": "español",
+        "moderno_headers": {
+            "experience": "EXPERIENCIA PROFESIONAL", "education": "EDUCACIÓN",
+            "skills": "SKILLS ADICIONALES", "technologies": "TECNOLOGÍAS",
+        },
+        "oficial_headers": {"education": "Educación", "experience": "Experiencia",
+                             "skills_heading": "Habilidades e Intereses", "technical": "Técnico: "},
+        "linkedin": {"title": "Tu Perfil de LinkedIn Optimizado", "headline": "Titular",
+                     "about": "Acerca de", "recommendations": "Recomendaciones para tu perfil"},
+    },
+    "en": {
+        "label": "English",
+        "prompt_name": "English",
+        "moderno_headers": {
+            "experience": "PROFESSIONAL EXPERIENCE", "education": "EDUCATION",
+            "skills": "ADDITIONAL SKILLS", "technologies": "TECHNOLOGIES",
+        },
+        "oficial_headers": {"education": "Education", "experience": "Experience",
+                             "skills_heading": "Skills & Interests", "technical": "Technical: "},
+        "linkedin": {"title": "Your Optimized LinkedIn Profile", "headline": "Headline",
+                     "about": "About", "recommendations": "Recommendations for your profile"},
+    },
+    "fr": {
+        "label": "Français",
+        "prompt_name": "français",
+        "moderno_headers": {
+            "experience": "EXPÉRIENCE PROFESSIONNELLE", "education": "FORMATION",
+            "skills": "COMPÉTENCES SUPPLÉMENTAIRES", "technologies": "TECHNOLOGIES",
+        },
+        "oficial_headers": {"education": "Formation", "experience": "Expérience",
+                             "skills_heading": "Compétences et intérêts", "technical": "Techniques : "},
+        "linkedin": {"title": "Votre profil LinkedIn optimisé", "headline": "Titre",
+                     "about": "À propos", "recommendations": "Recommandations pour votre profil"},
+    },
+    "pt": {
+        "label": "Português",
+        "prompt_name": "português",
+        "moderno_headers": {
+            "experience": "EXPERIÊNCIA PROFISSIONAL", "education": "FORMAÇÃO ACADÊMICA",
+            "skills": "HABILIDADES ADICIONAIS", "technologies": "TECNOLOGIAS",
+        },
+        "oficial_headers": {"education": "Formação", "experience": "Experiência",
+                             "skills_heading": "Habilidades e Interesses", "technical": "Técnico: "},
+        "linkedin": {"title": "Seu Perfil do LinkedIn Otimizado", "headline": "Título",
+                     "about": "Sobre", "recommendations": "Recomendações para seu perfil"},
+    },
+}
+DEFAULT_LANGUAGE = "es"
+
 SYSTEM_PROMPT = (
     "Eres un experto en redacción de hojas de vida en el formato estándar de Harvard "
     "(Harvard Office of Career Services). Reescribes el contenido de un CV existente: "
@@ -51,7 +106,7 @@ Responde ÚNICAMENTE con un JSON válido (sin markdown, sin explicación adicion
 """
 
 
-def rewrite_resume_harvard(raw_text):
+def _call_gemini(system_prompt, user_prompt):
     # Calls the Gemini REST API directly with `requests` instead of the
     # google-generativeai SDK. The SDK pulls in grpcio/protobuf/google-api-core,
     # a heavy dependency tree that was pushing memory past low-RAM deployment
@@ -62,20 +117,59 @@ def rewrite_resume_harvard(raw_text):
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
 
-    prompt = (
-        f"Aquí está el texto extraído de un CV (puede tener errores de formato "
-        f"por la extracción):\n\n---\n{raw_text}\n---\n\n{RESPONSE_SCHEMA_HINT}"
-    )
     payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": [{"parts": [{"text": prompt}]}],
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"parts": [{"text": user_prompt}]}],
     }
-    resp = requests.post(url, params={"key": api_key}, json=payload, timeout=60)
+    resp = requests.post(url, params={"key": api_key}, json=payload, timeout=90)
     resp.raise_for_status()
     body = resp.json()
     text = body["candidates"][0]["content"]["parts"][0]["text"].strip()
     text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
     return json.loads(text)
+
+
+def rewrite_resume_harvard(raw_text, language_code=DEFAULT_LANGUAGE):
+    lang = LANGUAGES.get(language_code, LANGUAGES[DEFAULT_LANGUAGE])
+    prompt = (
+        f"Aquí está el texto extraído de un CV (puede tener errores de formato "
+        f"por la extracción):\n\n---\n{raw_text}\n---\n\n"
+        f"IMPORTANTE: Escribe TODO el contenido del JSON de salida (resumen, títulos de cargos, "
+        f"logros, títulos de estudios, habilidades) en {lang['prompt_name']}, sin importar en qué "
+        f"idioma esté el CV original. No traduzcas nombres propios de personas, empresas ni "
+        f"instituciones educativas.\n\n{RESPONSE_SCHEMA_HINT}"
+    )
+    return _call_gemini(SYSTEM_PROMPT, prompt)
+
+
+LINKEDIN_SYSTEM_PROMPT = (
+    "Eres un experto en marca personal y optimización de perfiles de LinkedIn. A partir de un CV, "
+    "redactas un titular y una sección 'Acerca de' atractivos y honestos (sin inventar logros que "
+    "no estén respaldados por el CV), y das recomendaciones prácticas y accionables para mejorar "
+    "la visibilidad y el impacto del perfil (no son elogios ni testimonios de terceros, son consejos "
+    "de optimización)."
+)
+
+LINKEDIN_SCHEMA_HINT = """
+Responde ÚNICAMENTE con un JSON válido (sin markdown) con esta forma exacta:
+{
+  "headline": "Titular profesional para LinkedIn, máximo 220 caracteres",
+  "about": "Sección 'Acerca de' en primera persona, 3-4 párrafos cortos",
+  "recommendations": ["Recomendación práctica 1", "Recomendación práctica 2", "..."]
+}
+Incluye entre 5 y 7 recomendaciones sobre: foto de perfil, banner, palabras clave del titular,
+frecuencia de publicación, participación en la red, y cómo pedir recomendaciones genuinas a
+antiguos colegas o jefes.
+"""
+
+
+def generate_linkedin_profile(raw_text, language_code=DEFAULT_LANGUAGE):
+    lang = LANGUAGES.get(language_code, LANGUAGES[DEFAULT_LANGUAGE])
+    prompt = (
+        f"Aquí está el texto extraído de un CV:\n\n---\n{raw_text}\n---\n\n"
+        f"IMPORTANTE: Escribe todo el contenido en {lang['prompt_name']}.\n\n{LINKEDIN_SCHEMA_HINT}"
+    )
+    return _call_gemini(LINKEDIN_SYSTEM_PROMPT, prompt)
 
 
 def _as_list(value):
@@ -241,9 +335,10 @@ def _rows_after(table, start_row):
     return result
 
 
-def build_from_moderno(data, output_path):
+def build_from_moderno(data, output_path, language_code=DEFAULT_LANGUAGE):
     if not isinstance(data, dict):
         data = {}
+    headers = LANGUAGES.get(language_code, LANGUAGES[DEFAULT_LANGUAGE])["moderno_headers"]
     doc = Document(TEMPLATE_CHOICES["moderno"]["path"])
     table = doc.tables[0]
 
@@ -256,10 +351,15 @@ def build_from_moderno(data, output_path):
     summary_cell = _distinct_cells(table.rows[3])[0]
     _set_para_text(summary_cell.paragraphs[0], str(data.get("summary") or "").strip())
 
+    # Locate each header row by the text baked into the bundled template
+    # (always Spanish), then relabel it to the requested output language.
     exp_header = _find_header_row(table, "EXPERIENCIA PROFESIONAL")
     edu_header = _find_header_row(table, "EDUCACIÓN")
     skills_header = _find_header_row(table, "SKILLS ADICIONALES")
     tech_header = _find_header_row(table, "TECNOLOGÍAS")
+    for row, key in ((exp_header, "experience"), (edu_header, "education"),
+                     (skills_header, "skills"), (tech_header, "technologies")):
+        _set_para_text(_distinct_cells(row)[0].paragraphs[0], headers[key])
 
     # --- Experience: groups of 3 rows (title/loc, bullets, spacer) ---
     between = _rows_between(table, exp_header, edu_header)
@@ -393,9 +493,10 @@ def _set_labeled_line(paragraph, label, value):
     add(value, None)
 
 
-def build_from_oficial(data, output_path):
+def build_from_oficial(data, output_path, language_code=DEFAULT_LANGUAGE):
     if not isinstance(data, dict):
         data = {}
+    headers = LANGUAGES.get(language_code, LANGUAGES[DEFAULT_LANGUAGE])["oficial_headers"]
     doc = Document(TEMPLATE_CHOICES["oficial"]["path"])
 
     name_p = _find_paragraph(doc, "Firstname Lastname")
@@ -409,6 +510,12 @@ def build_from_oficial(data, output_path):
     )
     if contact_p is not None:
         _set_para_text(contact_p, str(data.get("contact_line") or "").strip())
+
+    # Keep references to the section headings now (matched by the template's
+    # original English text) so they can be relabeled at the end, after
+    # they've been used as text-based section boundaries below.
+    education_heading_p = _find_paragraph(doc, "Education")
+    experience_heading_p = _find_paragraph(doc, "Experience")
 
     # --- Education: drop the coursework/study-abroad/high-school placeholders ---
     for text in (
@@ -507,7 +614,7 @@ def build_from_oficial(data, output_path):
     if skills_heading is not None:
         for run in list(skills_heading.runs):
             run._r.getparent().remove(run._r)
-        run = skills_heading.add_run("Skills & Interests")
+        run = skills_heading.add_run(headers["skills_heading"])
         run.bold = True
 
     skills_raw = data.get("skills")
@@ -517,7 +624,7 @@ def build_from_oficial(data, output_path):
         doc, "Technical: List computer software and programming languages and your level of fluency"
     )
     if technical_p is not None:
-        _set_labeled_line(technical_p, "Technical: ", skills_text)
+        _set_labeled_line(technical_p, headers["technical"], skills_text)
 
     for text in (
         "Language: List foreign languages and your level of fluency",
@@ -528,6 +635,13 @@ def build_from_oficial(data, output_path):
         if p is not None:
             _remove_paragraph(p)
 
+    # Relabel Education/Experience headings now that they're no longer
+    # needed as English text anchors elsewhere in this function.
+    if education_heading_p is not None:
+        _set_para_text(education_heading_p, headers["education"])
+    if experience_heading_p is not None:
+        _set_para_text(experience_heading_p, headers["experience"])
+
     doc.save(output_path)
 
 
@@ -537,6 +651,69 @@ TEMPLATE_BUILDERS = {
 }
 
 
-def build_docx(template_key, data, output_path):
+def build_docx(template_key, data, output_path, language_code=DEFAULT_LANGUAGE):
     builder = TEMPLATE_BUILDERS.get(template_key, build_from_moderno)
-    builder(data, output_path)
+    builder(data, output_path, language_code=language_code)
+
+
+_PDF_CHAR_REPLACEMENTS = {
+    "‘": "'", "’": "'", "“": '"', "”": '"',
+    "–": "-", "—": "-", "…": "...", "•": "-",
+}
+
+
+def _pdf_safe(text):
+    """fpdf2's core (non-embedded) fonts only support Latin-1. Swap common
+    "smart" punctuation for safe equivalents, and replace anything else
+    outside Latin-1 rather than letting pdf.output() raise."""
+    text = str(text or "")
+    for src, dst in _PDF_CHAR_REPLACEMENTS.items():
+        text = text.replace(src, dst)
+    return text.encode("latin-1", errors="replace").decode("latin-1")
+
+
+def build_linkedin_pdf(data, output_path, language_code=DEFAULT_LANGUAGE):
+    if not isinstance(data, dict):
+        data = {}
+    from fpdf import FPDF
+
+    labels = LANGUAGES.get(language_code, LANGUAGES[DEFAULT_LANGUAGE])["linkedin"]
+
+    pdf = FPDF(format="Letter")
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_margins(22, 20, 22)
+    pdf.add_page()
+
+    def multi_cell_line(text, **kwargs):
+        # multi_cell() doesn't reset the X cursor to the left margin after
+        # rendering, so a later call can be left with ~0 width available
+        # and raise "Not enough horizontal space to render a single
+        # character". Reset X before every call.
+        pdf.set_x(pdf.l_margin)
+        pdf.multi_cell(0, text=text, **kwargs)
+
+    pdf.set_font("Helvetica", "B", 18)
+    multi_cell_line(_pdf_safe(labels["title"]), h=10)
+    pdf.ln(6)
+
+    def section(heading, body):
+        pdf.set_font("Helvetica", "B", 13)
+        multi_cell_line(_pdf_safe(heading), h=8)
+        pdf.set_font("Helvetica", "", 11)
+        multi_cell_line(_pdf_safe(body), h=6)
+        pdf.ln(4)
+
+    section(labels["headline"], data.get("headline") or "")
+    section(labels["about"], data.get("about") or "")
+
+    pdf.set_font("Helvetica", "B", 13)
+    multi_cell_line(_pdf_safe(labels["recommendations"]), h=8)
+    pdf.set_font("Helvetica", "", 11)
+    recommendations = data.get("recommendations")
+    if not isinstance(recommendations, list):
+        recommendations = [recommendations] if recommendations else []
+    for rec in recommendations:
+        multi_cell_line(_pdf_safe(f"-  {rec}"), h=6)
+        pdf.ln(1)
+
+    pdf.output(output_path)

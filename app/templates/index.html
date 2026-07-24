@@ -92,11 +92,15 @@
         <section class="results harvard-confirmation">
           <div class="confirmation-icon" aria-hidden="true">✓</div>
           <h2>¡Tu CV estilo Harvard está listo, {{ customer_name }}!</h2>
-          <p class="confirmation-text">Descárgalo desde el botón de abajo.</p>
+          <p class="confirmation-text">Descarga tus archivos abajo.</p>
 
-          <a class="harvard-button download-button" href="{{ url_for('harvard_download', file_token=download_token) }}">
-            Descargar mi CV (.docx)
-          </a>
+          <div class="download-list">
+            {% for f in download_files %}
+            <a class="harvard-button download-button" href="{{ url_for('harvard_download', file_token=f.token) }}">
+              Descargar {{ f.label }}
+            </a>
+            {% endfor %}
+          </div>
         </section>
       {% endif %}
 
@@ -147,13 +151,28 @@
               <label>Nombre completo
                 <input type="text" name="full_name" required placeholder="Tu nombre completo">
               </label>
-              <label>Correo electrónico <span class="optional">(ahí te enviaremos el CV)</span>
+              <label>Correo electrónico
                 <input type="email" name="email" required placeholder="tucorreo@email.com">
               </label>
               <label>Celular
                 <input type="tel" name="phone" required placeholder="+57 300 000 0000">
               </label>
             </div>
+
+            <div class="language-picker">
+              <p class="language-label">Idioma del CV <span class="optional">(elige hasta 2)</span></p>
+              <div class="language-options">
+                {% for code, lang in harvard_languages.items() %}
+                <label class="language-chip">
+                  <input type="checkbox" name="languages" value="{{ code }}" class="language-checkbox"
+                         {{ 'checked' if code == 'es' }}>
+                  <span>{{ lang.label }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <p class="bonus-note">Incluye de bono un PDF con tu perfil de LinkedIn optimizado y recomendaciones para mejorarlo.</p>
 
             <button type="submit" class="harvard-button">
               Generar CV Harvard · ${{ '{:,}'.format(harvard_price) }} COP
@@ -283,6 +302,18 @@
       document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') closeLightbox();
+      });
+    })();
+
+    (function () {
+      var boxes = document.querySelectorAll('.language-checkbox');
+      if (!boxes.length) return;
+      var max = 2;
+      boxes.forEach(function (box) {
+        box.addEventListener('change', function () {
+          var checked = document.querySelectorAll('.language-checkbox:checked');
+          boxes.forEach(function (b) { b.disabled = checked.length >= max && !b.checked; });
+        });
       });
     })();
   </script>

@@ -8,7 +8,15 @@ from urllib.parse import urlencode
 import requests
 from flask import Flask, redirect, render_template, request, send_file
 
-from harvard_cv import TEMPLATE_CHOICES, build_docx, rewrite_resume_harvard
+from harvard_cv import (
+    DEFAULT_LANGUAGE,
+    LANGUAGES,
+    TEMPLATE_CHOICES,
+    build_docx,
+    build_linkedin_pdf,
+    generate_linkedin_profile,
+    rewrite_resume_harvard,
+)
 from resume_scorer import extract_text, score_resume
 
 app = Flask(__name__)
@@ -25,13 +33,15 @@ WOMPI_API_BASE = (
 HARVARD_CV_PRICE_COP = int(os.environ.get("HARVARD_CV_PRICE_COP", "25000"))
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+MAX_LANGUAGES = 2
 
 # In-memory store for resumes awaiting payment. A single-process deployment
 # (e.g. Render free tier) keeps this alive between the /analyze request and
 # the Wompi redirect back to /harvard/success for the same visitor.
 PENDING_RESUMES = {}
 
-# Generated docx files waiting to be downloaded from the confirmation page.
+# Generated files waiting to be downloaded from the confirmation page:
+# file_token -> {"path": ..., "filename": ...}
 READY_FILES = {}
 
 
@@ -81,6 +91,7 @@ def analyze():
         whatsapp_number=WHATSAPP_NUMBER, whatsapp_message=whatsapp_message,
         harvard_token=token, harvard_price=HARVARD_CV_PRICE_COP,
         harvard_enabled=_harvard_enabled(), harvard_templates=TEMPLATE_CHOICES,
+        harvard_languages=LANGUAGES,
     )
 
 
@@ -97,18 +108,25 @@ def checkout(token):
     full_name = request.form.get("full_name", "").strip()
     email = request.form.get("email", "").strip()
     phone = request.form.get("phone", "").strip()
+    languages = [lang for lang in request.form.getlist("languages") if lang in LANGUAGES]
 
     if template_choice not in TEMPLATE_CHOICES:
         return render_template("index.html", result=None, error="Selecciona una plantilla de CV válida.")
     if not full_name or not email or not phone:
         return render_template("index.html", result=None,
                                 error="Completa tu nombre completo, correo y celular para continuar.")
+    if not languages:
+        return render_template("index.html", result=None, error="Selecciona al menos un idioma para tu CV.")
+    if len(languages) > MAX_LANGUAGES:
+        return render_template("index.html", result=None,
+                                error=f"Selecciona máximo {MAX_LANGUAGES} idiomas para tu CV.")
 
     PENDING_RESUMES[token].update({
         "template_choice": template_choice,
         "full_name": full_name,
         "email": email,
         "phone": phone,
+        "languages": languages,
     })
 
     amount_in_cents = HARVARD_CV_PRICE_COP * 100
@@ -129,6 +147,12 @@ def checkout(token):
         "customer-data:phone-number": phone,
     }
     return redirect(f"https://checkout.wompi.co/p/?{urlencode(params)}", code=303)
+
+
+def _register_file(path, filename):
+    file_token = uuid.uuid4().hex
+    READY_FILES[file_token] = {"path": path, "filename": filename}
+    return file_token
 
 
 @app.route("/harvard/success")
@@ -153,49 +177,59 @@ def harvard_success():
                                 error=f"El pago no se completó (estado: {transaction.get('status', 'desconocido')}).")
 
     token = transaction.get("reference")
-    # Keep the entry until the docx is actually built and ready to download, so a
-    # customer who already paid can just reload this URL to retry after a
-    # transient failure instead of having to pay again.
+    # Keep the entry until every file is actually built and ready to download,
+    # so a customer who already paid can just reload this URL to retry after
+    # a transient failure instead of having to pay again.
     entry = PENDING_RESUMES.get(token)
     if not entry or "template_choice" not in entry:
         return render_template("index.html", result=None,
                                 error="No se encontró tu CV original. Escríbenos por WhatsApp con tu "
                                       "comprobante de pago para resolverlo.")
 
+    languages = entry.get("languages") or [DEFAULT_LANGUAGE]
+    files = []
+
     try:
-        data = rewrite_resume_harvard(entry["text"])
+        for lang in languages:
+            data = rewrite_resume_harvard(entry["text"], language_code=lang)
+            with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                build_docx(entry["template_choice"], data, tmp.name, language_code=lang)
+                tmp_path = tmp.name
+            lang_label = LANGUAGES[lang]["label"]
+            token_id = _register_file(tmp_path, f"CV_Harvard_{lang}.docx")
+            files.append({"label": f"CV Harvard ({lang_label})", "token": token_id})
     except Exception as exc:
         return render_template("index.html", result=None,
-                                error=f"Se procesó tu pago pero no pudimos generar el CV: {exc}. "
+                                error=f"Se procesó tu pago pero no pudimos generar tu CV: {exc}. "
                                       f"Recarga esta página para reintentar, o escríbenos por WhatsApp.")
 
+    # Bonus: LinkedIn profile + recommendations PDF, in the first chosen language.
     try:
-        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-            build_docx(entry["template_choice"], data, tmp.name)
-            tmp_path = tmp.name
+        bonus_lang = languages[0]
+        linkedin_data = generate_linkedin_profile(entry["text"], language_code=bonus_lang)
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            build_linkedin_pdf(linkedin_data, tmp.name, language_code=bonus_lang)
+            bonus_path = tmp.name
+        bonus_token = _register_file(bonus_path, "Perfil_LinkedIn.pdf")
+        files.append({"label": "Bono: Perfil de LinkedIn + recomendaciones (PDF)", "token": bonus_token})
     except Exception:
-        return render_template("index.html", result=None,
-                                error="Se procesó tu pago pero no pudimos armar el archivo docx. "
-                                      "Recarga esta página para reintentar, o escríbenos por WhatsApp.")
-
-    file_token = uuid.uuid4().hex
-    READY_FILES[file_token] = tmp_path
+        pass  # the CV file(s) above are the core deliverable; the bonus is best-effort
 
     PENDING_RESUMES.pop(token, None)
     return render_template(
         "index.html", result=None, error=None,
-        harvard_success=True, download_token=file_token,
+        harvard_success=True, download_files=files,
         customer_name=entry.get("full_name", ""),
     )
 
 
 @app.route("/harvard/download/<file_token>")
 def harvard_download(file_token):
-    tmp_path = READY_FILES.get(file_token)
-    if not tmp_path or not os.path.exists(tmp_path):
+    entry = READY_FILES.get(file_token)
+    if not entry or not os.path.exists(entry["path"]):
         return render_template("index.html", result=None,
                                 error="Ese enlace de descarga ya no está disponible. Escríbenos por WhatsApp.")
-    return send_file(tmp_path, as_attachment=True, download_name="CV_Harvard.docx")
+    return send_file(entry["path"], as_attachment=True, download_name=entry["filename"])
 
 
 if __name__ == "__main__":

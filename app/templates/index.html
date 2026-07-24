@@ -13,7 +13,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Optimización para reclutadores y sistemas ATS</p>
           <h1>Calificador de Hojas de Vida</h1>
-          <p class="subtitle">Sube tu CV y obtén una calificación del 1 al 10 sobre qué tan visible y adecuado es para filtros ATS y reclutadores de talento.</p>
+          <p class="subtitle">Sube tu CV y descubre en segundos qué tan bien pasa los filtros ATS, con recomendaciones concretas para que los reclutadores se fijen en ti.</p>
         </div>
         <div class="hero-art" aria-hidden="true">
           <div class="hero-doc">
@@ -76,12 +76,12 @@
         </label>
 
         <label class="jd-label" for="job_description">
-          Oferta de trabajo <span class="optional">(opcional, mejora la precisión de la calificación)</span>
+          Oferta de trabajo <span class="optional">(opcional, para comparar tu CV con las palabras clave que busca el reclutador)</span>
           <textarea id="job_description" name="job_description" rows="5"
             placeholder="Pega aquí la descripción del puesto para comparar palabras clave..."></textarea>
         </label>
 
-        <button type="submit">Calificar mi CV</button>
+        <button type="submit">Calificar mi CV gratis</button>
       </form>
 
       {% if error %}
@@ -92,7 +92,7 @@
         <section class="results harvard-confirmation">
           <div class="confirmation-icon" aria-hidden="true">✓</div>
           <h2>¡Tu CV estilo Harvard está listo, {{ customer_name }}!</h2>
-          <p class="confirmation-text">Descarga tus archivos abajo.</p>
+          <p class="confirmation-text">Descarga tus archivos a continuación.</p>
 
           <div class="download-list">
             {% for f in download_files %}
@@ -123,11 +123,11 @@
           {% if harvard_enabled %}
           <form action="{{ url_for('checkout', token=harvard_token) }}" method="post" class="harvard-cta">
             <div class="harvard-cta-text">
-              <strong>¿Quieres una versión nueva y mejorada de tu CV?</strong>
-              <small>Elige una plantilla y la reescribimos con IA en formato Harvard, lista para descargar.</small>
+              <strong>¿Quieres destacar entre los demás candidatos?</strong>
+              <small>Elige una plantilla, nuestra IA reescribe tu CV en formato Harvard y te lo entrega listo para descargar.</small>
             </div>
 
-            <p class="preview-hint">Vista previa real de cada plantilla (con contenido de ejemplo). Clic en la imagen para verla en grande.</p>
+            <p class="preview-hint">Vista previa real de cada plantilla, con contenido de ejemplo. Haz clic en la imagen para ampliarla.</p>
             <div class="template-picker">
               {% for key, tpl in harvard_templates.items() %}
               <label class="template-option">
@@ -172,10 +172,10 @@
               </div>
             </div>
 
-            <p class="bonus-note">Incluye de bono un PDF con tu perfil de LinkedIn optimizado y recomendaciones para mejorarlo.</p>
+            <p class="bonus-note">Bono incluido sin costo adicional: un PDF con tu perfil de LinkedIn optimizado y recomendaciones para potenciarlo.</p>
 
             <button type="submit" class="harvard-button">
-              Generar CV Harvard · ${{ '{:,}'.format(harvard_price) }} COP
+              Generar mi CV Harvard + bono LinkedIn · ${{ '{:,}'.format(harvard_price) }} COP
             </button>
           </form>
           {% endif %}
@@ -184,7 +184,7 @@
              href="https://wa.me/{{ whatsapp_number }}?text={{ whatsapp_message | urlencode }}"
              target="_blank" rel="noopener">
             <span class="whatsapp-icon" aria-hidden="true"></span>
-            Habla con un asesor por WhatsApp
+            ¿Prefieres asesoría personalizada? Escríbenos por WhatsApp
           </a>
 
           <h3>Desglose de puntuación</h3>

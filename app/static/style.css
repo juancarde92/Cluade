@@ -528,6 +528,71 @@ button:active {
   box-shadow: 0 0 0 3px rgba(184, 114, 12, 0.15);
 }
 
+.language-picker { display: flex; flex-direction: column; gap: 8px; }
+
+.language-label {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.language-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.language-chip {
+  position: relative;
+  cursor: pointer;
+}
+
+.language-checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.language-chip span {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+}
+
+.language-checkbox:checked + span {
+  border-color: #b8720c;
+  background: #fdf1da;
+}
+
+.language-checkbox:disabled + span {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bonus-note {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: #f0fdfb;
+  border-left: 3px solid var(--accent);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.download-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+
 .harvard-button {
   background: linear-gradient(135deg, #b8720c, #8f580a);
   color: white;

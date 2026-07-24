@@ -6,8 +6,9 @@ import uuid
 from urllib.parse import urlencode
 
 import requests
-from flask import Flask, redirect, render_template, request, send_file
+from flask import Flask, Response, redirect, render_template, request, send_file
 
+import analytics
 from harvard_cv import (
     DEFAULT_LANGUAGE,
     LANGUAGES,
@@ -34,6 +35,7 @@ HARVARD_CV_PRICE_COP = int(os.environ.get("HARVARD_CV_PRICE_COP", "25000"))
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 MAX_LANGUAGES = 2
+ADMIN_STATS_PASSWORD = os.environ.get("ADMIN_STATS_PASSWORD")
 
 # In-memory store for resumes awaiting payment. A single-process deployment
 # (e.g. Render free tier) keeps this alive between the /analyze request and
@@ -51,6 +53,7 @@ def _harvard_enabled():
 
 @app.route("/", methods=["GET"])
 def index():
+    analytics.increment("visits")
     return render_template("index.html", result=None)
 
 
@@ -78,6 +81,7 @@ def analyze():
                                 error="No se pudo extraer texto del archivo. Verifica que no sea una imagen escaneada.")
 
     result = score_resume(text, job_description)
+    analytics.increment("analyses")
     whatsapp_message = (
         f"Hola, acabo de calificar mi hoja de vida con el Calificador ATS y obtuve "
         f"{result['score']}/10. Quiero asesoría para mejorarla."
@@ -128,6 +132,7 @@ def checkout(token):
         "phone": phone,
         "languages": languages,
     })
+    analytics.increment("harvard_checkouts_started")
 
     amount_in_cents = HARVARD_CV_PRICE_COP * 100
     currency = "COP"
@@ -216,6 +221,8 @@ def harvard_success():
         pass  # the CV file(s) above are the core deliverable; the bonus is best-effort
 
     PENDING_RESUMES.pop(token, None)
+    analytics.increment("harvard_purchases")
+    analytics.increment("harvard_revenue_cop", HARVARD_CV_PRICE_COP)
     return render_template(
         "index.html", result=None, error=None,
         harvard_success=True, download_files=files,
@@ -230,6 +237,33 @@ def harvard_download(file_token):
         return render_template("index.html", result=None,
                                 error="Ese enlace de descarga ya no está disponible. Escríbenos por WhatsApp.")
     return send_file(entry["path"], as_attachment=True, download_name=entry["filename"])
+
+
+def _check_admin_auth():
+    auth = request.authorization
+    return bool(ADMIN_STATS_PASSWORD) and auth and auth.password == ADMIN_STATS_PASSWORD
+
+
+@app.route("/admin/stats")
+def admin_stats():
+    if not ADMIN_STATS_PASSWORD:
+        return render_template("index.html", result=None, error="Panel de métricas no configurado."), 404
+    if not _check_admin_auth():
+        return Response(
+            "Autenticación requerida.", 401,
+            {"WWW-Authenticate": 'Basic realm="Metricas"'},
+        )
+
+    stats = analytics.get_stats()
+    analyses = stats.get("analyses", 0)
+    purchases = stats.get("harvard_purchases", 0)
+    checkouts = stats.get("harvard_checkouts_started", 0)
+    conversion = round((purchases / analyses * 100), 1) if analyses else 0
+    checkout_completion = round((purchases / checkouts * 100), 1) if checkouts else 0
+    return render_template(
+        "admin_stats.html", stats=stats,
+        conversion=conversion, checkout_completion=checkout_completion,
+    )
 
 
 if __name__ == "__main__":

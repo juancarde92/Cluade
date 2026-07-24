@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Métricas — Calificador de Hojas de Vida</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .stat-card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .stat-card .n { display: block; font-size: 1.8rem; font-weight: 800; color: var(--primary); }
+    .stat-card .l { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+    .stats-note { margin-top: 20px; font-size: 0.85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">Panel interno</p>
+          <h1>Métricas de uso</h1>
+        </div>
+      </div>
+    </header>
+    <div class="container">
+      <section class="results">
+        <h2>Resumen desde el último despliegue</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="n">{{ stats.visits }}</span>
+            <span class="l">Visitas a la página principal</span>
+          </div>
+          <div class="stat-card">
+            <span class="n">{{ stats.analyses }}</span>
+            <span class="l">CVs calificados</span>
+          </div>
+          <div class="stat-card">
+            <span class="n">{{ stats.harvard_checkouts_started }}</span>
+            <span class="l">Checkouts iniciados</span>
+          </div>
+          <div class="stat-card">
+            <span class="n">{{ stats.harvard_purchases }}</span>
+            <span class="l">Compras completadas</span>
+          </div>
+          <div class="stat-card">
+            <span class="n">${{ '{:,}'.format(stats.harvard_revenue_cop) }}</span>
+            <span class="l">Ingresos totales (COP)</span>
+          </div>
+          <div class="stat-card">
+            <span class="n">{{ conversion }}%</span>
+            <span class="l">Conversión: calificaciones → compras</span>
+          </div>
+          <div class="stat-card">
+            <span class="n">{{ checkout_completion }}%</span>
+            <span class="l">Checkouts que terminaron en pago</span>
+          </div>
+        </div>
+        <p class="stats-note">
+          Estos contadores se reinician cada vez que se despliega una nueva versión de la app
+          (el disco de Render no es persistente entre despliegues). Para historial permanente
+          se necesitaría una base de datos externa.
+        </p>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

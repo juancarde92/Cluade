@@ -1,20 +1,17 @@
 ---
 name: detector-de-bolsillo
 description: >
-  Convierte a Claude en un "detector de bolsillo": un juez que puntúa de 0 a 100
-  qué tan detectable como IA suena un texto, señala las frases exactas que lo
-  delatan y las reescribe para que suenen a la persona que lo escribió, no a
-  una plantilla. Úsala siempre que el usuario pegue un texto (correo, post de
-  LinkedIn, landing/página de venta, propuesta comercial, email frío, o
-  cualquier prosa) y pida cosas como: "puntúame esto como un detector de IA",
-  "dime qué frases me delatan", "humaniza este texto", "que no suene a IA /a
-  ChatGPT/a plantilla", "haz que esto suene más natural/más a mí", "báteme un
-  detector de IA", o quiera reducir el porcentaje de detección de IA (tipo
-  GPTZero, Originality.ai, Turnitin) de un texto que ya escribió con ayuda de
-  IA. También aplícala si el usuario pide directamente "el bucle del juez" o
-  "el detector de bolsillo". No es para detectar si un texto de OTRA persona
-  fue escrito por IA con fines acusatorios (los detectores no sirven para
-  eso, ver más abajo) — es para que el propio texto del usuario suene a él.
+  Convierte a Claude en un "detector de bolsillo": puntúa de 0 a 100 qué tan
+  detectable como IA suena un texto, señala las frases exactas que lo delatan
+  y las reescribe para que suenen a la persona que lo escribió, no a una
+  plantilla. Úsala cuando el usuario pegue un texto (correo, post de
+  LinkedIn, landing, propuesta, email frío, o cualquier prosa) y pida:
+  "puntúame como un detector de IA", "qué frases me delatan", "humaniza este
+  texto", "que no suene a IA/ChatGPT/plantilla", "que suene más a mí", o
+  quiera bajar el % de detección (GPTZero, Originality.ai, Turnitin) de algo
+  escrito con IA. También si pide "el bucle del juez" o "el detector de
+  bolsillo". No sirve para acusar a otros de usar IA — es para que el propio
+  texto del usuario suene a él.
 ---
 
 # Detector de bolsillo

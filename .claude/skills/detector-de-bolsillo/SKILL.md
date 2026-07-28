@@ -87,11 +87,21 @@ Reglas duras al reescribir:
 ## El bucle: cómo correrlo con el usuario
 
 1. El usuario pega su texto. Puntúalo con las 6 dimensiones de arriba.
-2. Devuélvele la nota, la tabla, y la reescritura de las frases que más
-   delatan (solo esas).
-3. Pídele que confirme o pegue la versión ya sustituida (o hazlo tú mismo si
-   te da permiso), y vuelve a puntuar esa nueva versión completa.
-4. Repite hasta que la nota deje de subir de forma clara.
+2. Sustituye tú mismo las frases marcadas por su reescritura y vuelve a
+   puntuar el texto completo resultante, sin esperar a que el usuario lo
+   pegue de nuevo — hazlo por defecto, no hace falta que te dé permiso cada
+   vez para esta parte mecánica del proceso.
+3. Repite internamente el ciclo puntuar → sustituir → repuntuar hasta que se
+   cumpla la señal de parada de abajo.
+4. Entrega al usuario el resultado final de una vez: el texto reescrito
+   completo, cuántas vueltas corriste, y cómo subió la nota en cada una (una
+   línea por vuelta basta, no hace falta repetir la tabla completa de las 6
+   dimensiones en cada paso intermedio).
+
+Si el usuario prefiere ir vuelta por vuelta y decidir él mismo qué frases
+aceptar, dile que puede pedírtelo explícitamente — pero el modo por defecto
+es entregar el texto ya trabajado hasta el punto óptimo, para no obligarlo a
+copiar y pegar en cada iteración.
 
 **Cuándo parar — esto es lo importante:** no persigas el 100. Pasado cierto
 punto, seguir "puliendo" empieza a aplanar el texto: por subir la nota, se

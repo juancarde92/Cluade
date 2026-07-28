@@ -84,6 +84,19 @@ Reglas duras al reescribir:
   detalle concreto haría el texto más humano, pídeselo — no lo inventes.
 - No toques nada del texto salvo las frases marcadas.
 
+## Limpieza previa: Unicode oculto
+
+Antes de puntuar, revisa si el texto pegado trae caracteres Unicode
+invisibles — restos típicos de copiar y pegar desde ChatGPT, Word o Google
+Docs: espacios de ancho cero (U+200B, U+200C, U+200D), marcas de dirección de
+texto (U+200E, U+200F, U+202A-U+202E), el BOM (U+FEFF), espacios duros no
+estándar (U+00A0, U+2007, U+202F) o glifos que imitan letras normales
+(homóglifos de otros alfabetos). Elimínalos silenciosamente al preparar el
+texto para puntuar y para la reescritura final. Si encontraste una cantidad
+notable, dilo en una línea al usuario (p. ej. "quité N caracteres Unicode
+invisibles que traía el texto") para que sepa que el archivo que le
+devuelves ya está limpio de eso — no hace falta detallar cada uno.
+
 ## El bucle: cómo correrlo con el usuario
 
 1. El usuario pega su texto. Puntúalo con las 6 dimensiones de arriba.

@@ -175,3 +175,52 @@ comparar contra lo que dice un detector real gratuito, y si no separan
 parecido, actualizar los "tells" (conectores de moda, muletillas típicas del
 momento) preguntando qué patrones de IA se comentan actualmente. Recomienda
 repetir esto cada uno o dos meses o cuando salga un modelo nuevo relevante.
+
+## Un tipo de detector que este bucle no toca: retrieval
+
+Todo lo de arriba ataca detectores de **estilo**: los que miden perplexity,
+burstiness y estilometría, que es lo que un juez-LLM puede evaluar leyendo el
+texto. Pero hay una familia de detectores completamente distinta contra la
+que reescribir no sirve de nada, y hay que ser honesto con el usuario sobre
+sus límites:
+
+Un detector de **recuperación (retrieval)** no analiza el estilo del texto en
+absoluto. En vez de eso, el propio proveedor del modelo (OpenAI, Google, etc.)
+guarda un registro de lo que sus modelos generaron, y cuando alguien envía un
+texto a revisar, lo compara por similitud semántica (por ejemplo con BM25)
+contra ese archivo. Si el texto pegado es semánticamente muy parecido a algo
+que el modelo generó antes — aunque se haya parafraseado agresivamente,
+cambiando casi todo el vocabulario y el orden de las palabras — el detector
+lo encuentra igual, porque el significado de fondo apenas cambia por mucho
+que cambien las palabras de superficie.
+
+Esto está demostrado empíricamente en Krishna et al. (NeurIPS 2023,
+"Paraphrasing evades detectors of AI-generated text, but retrieval is an
+effective defense", arxiv 2303.13408): entrenaron DIPPER, un parafraseador
+dedicado de 11.000 millones de parámetros, específicamente para maximizar el
+cambio léxico y de orden de palabras. Con él consiguieron tumbar la tasa de
+detección de watermarking, del clasificador de OpenAI, de GPTZero y de
+DetectGPT. El único detector que se mantuvo firme frente a ese ataque fue el
+basado en recuperación, precisamente porque no mira el estilo — mira si ese
+significado ya está en el archivo del proveedor.
+
+Qué implica esto para cómo uses este skill:
+
+- El bucle del juez (puntuar → reescribir frases delatoras → repuntuar) es
+  eficaz contra detectores de estilo (GPTZero, Originality.ai, la mayoría de
+  herramientas comerciales) y, sobre todo, contra el oído de un lector
+  humano — que es el objetivo real de este método.
+- No hay reescritura de estilo, por agresiva que sea, que derrote a un
+  detector de recuperación si el texto de fondo sigue siendo el mismo
+  contenido generado por un modelo cuyo proveedor guarda ese registro. Ese
+  ataque de laboratorio (DIPPER) usa un modelo de 11B parámetros entrenado
+  para ese fin específico con GPU pesada — no es comparable a pedirle a
+  ChatGPT o Claude que reescriba unas frases, y aun así el retrieval lo
+  resiste.
+- Sé transparente con el usuario si el contexto lo sugiere: si su
+  preocupación es evitar que una plataforma con acceso al historial de
+  generación del proveedor (por ejemplo, la propia empresa de IA, o una
+  herramienta que integra ese archivo) identifique el origen del texto, dile
+  que este método no ofrece ninguna garantía ahí — el objetivo de este skill
+  sigue siendo que el texto suene a la persona que lo escribe, no vencer
+  cualquier forma de detección posible.

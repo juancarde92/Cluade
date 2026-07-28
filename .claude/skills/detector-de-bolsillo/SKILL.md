@@ -215,6 +215,20 @@ parecido, actualizar los "tells" (conectores de moda, muletillas típicas del
 momento) preguntando qué patrones de IA se comentan actualmente. Recomienda
 repetir esto cada uno o dos meses o cuando salga un modelo nuevo relevante.
 
+**Evidencia de que ni el detector mejor valorado es fiable de forma precisa.**
+Un estudio cuasi-experimental (Atamhenwan, 2026, *Education and Information
+Technologies*) corrió 81 scripts con combinaciones controladas de texto humano
+y generado por ChatGPT, Copilot, Gemini y Grammarly a través de Turnitin —
+el detector considerado uno de los más usados y precisos. Los resultados:
+Turnitin no genera ningún puntaje cuando el contenido real de IA es ≤10% del
+texto; sobreestima sistemáticamente en el rango 15-40% de IA real; y
+subestima en el rango 70-100% (con ChatGPT al 100% real, detectó solo 60%).
+Los propios autores concluyen que el puntaje solo debería tomarse en serio
+por encima de ~60% y con escepticismo por debajo de ~40% — la misma lógica
+de "banda, no decimal" que ya recomienda esta skill. Si el usuario pregunta
+por qué confiar en una nota de detector real le resulta contraintuitivo,
+esta es la fuente para explicárselo con datos, no solo con la intuición.
+
 ## Un tipo de detector que este bucle no toca: retrieval
 
 Todo lo de arriba ataca detectores de **estilo**: los que miden perplexity,

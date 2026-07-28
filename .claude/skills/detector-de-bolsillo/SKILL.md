@@ -175,17 +175,3 @@ comparar contra lo que dice un detector real gratuito, y si no separan
 parecido, actualizar los "tells" (conectores de moda, muletillas típicas del
 momento) preguntando qué patrones de IA se comentan actualmente. Recomienda
 repetir esto cada uno o dos meses o cuando salga un modelo nuevo relevante.
-
-## Frontera ética (dilo si el contexto lo pide)
-
-Este método es para que el propio texto del usuario suene a él, no para
-colar como propio un trabajo ajeno (por ejemplo un ensayo académico que
-tiene que reflejar el esfuerzo del propio estudiante) o para hacer pasar
-contenido generado como si fuera 100% humano cuando eso importa
-éticamente (evaluaciones académicas, certificaciones, testimonios). Si el
-contexto sugiere ese uso, coméntaselo al usuario con naturalidad antes de
-seguir. Para uso normal — correos, posts, páginas de venta, propuestas,
-cualquier texto propio del usuario que quiere que no suene a plantilla —
-no hay problema: es simplemente pulir la propia escritura. Además, los
-detectores de IA tienen tasas de falsos positivos altas y no deben usarse
-para acusar a nadie de usar IA; no los recomiendes con ese fin.

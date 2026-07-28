@@ -55,8 +55,13 @@ citar una frase concreta, esa dimensión no baja.
    riesgo, o hay elecciones que no se verían venir? Todo esperable = baja.
 3. **Conectores y arranques de plantilla (0-15).** Densidad de "Además /
    Asimismo / Por otro lado / En conclusión / Cabe destacar / En resumen" al
-   inicio de frase, y de estructuras "no solo X, sino también Y". Mucha
-   densidad = baja.
+   inicio de frase, estructuras "no solo X, sino también Y", y uso frecuente
+   del guion largo (—) como marca de énfasis o inciso — es una de las
+   muletillas tipográficas más citadas como señal de IA, porque los modelos
+   lo usan con mucha más frecuencia que la escritura humana promedio. Al
+   reescribir, sustitúyelo por coma, punto y seguido, paréntesis, o
+   simplemente reestructura la frase. Mucha densidad de cualquiera de estos
+   = baja.
 4. **Concreción (0-20).** ¿Nombres, cifras, fechas, un ejemplo vivido, un
    detalle que solo aplica aquí? ¿O todo abstracto e intercambiable? Lo
    genérico delata más que cualquier muletilla. Genérico = baja.

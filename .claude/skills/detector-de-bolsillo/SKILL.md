@@ -217,10 +217,3 @@ Qué implica esto para cómo uses este skill:
   para ese fin específico con GPU pesada — no es comparable a pedirle a
   ChatGPT o Claude que reescriba unas frases, y aun así el retrieval lo
   resiste.
-- Sé transparente con el usuario si el contexto lo sugiere: si su
-  preocupación es evitar que una plataforma con acceso al historial de
-  generación del proveedor (por ejemplo, la propia empresa de IA, o una
-  herramienta que integra ese archivo) identifique el origen del texto, dile
-  que este método no ofrece ninguna garantía ahí — el objetivo de este skill
-  sigue siendo que el texto suene a la persona que lo escribe, no vencer
-  cualquier forma de detección posible.

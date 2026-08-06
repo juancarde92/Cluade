@@ -31,7 +31,7 @@
     </header>
 
     <div class="container">
-      {% if not result %}
+      {% if not result and not harvard_success %}
       <section class="trust-band">
         <div class="trust-stat">
           <span class="trust-number">8+</span>
@@ -88,6 +88,22 @@
         <div class="alert error">{{ error }}</div>
       {% endif %}
 
+      {% if harvard_success %}
+        <section class="results harvard-confirmation">
+          <div class="confirmation-icon" aria-hidden="true">✓</div>
+          <h2>¡Tu CV estilo Harvard está listo!</h2>
+          <p class="confirmation-text">Descarga tus archivos a continuación.</p>
+
+          <div class="download-list">
+            {% for f in download_files %}
+            <a class="harvard-button download-button" href="{{ url_for('harvard_download', file_token=f.token) }}">
+              Descargar {{ f.label }}
+            </a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
       {% if result %}
         <section class="results">
           <div class="results-header">
@@ -103,6 +119,52 @@
               </div>
             </div>
           </div>
+
+          {% if harvard_enabled %}
+          <form action="{{ url_for('harvard_generate', token=harvard_token) }}" method="post" class="harvard-cta">
+            <div class="harvard-cta-text">
+              <strong>¿Quieres destacar entre los demás candidatos?</strong>
+              <small>Elige una plantilla y nuestra IA reescribe tu CV en formato Harvard, listo para descargar gratis.</small>
+            </div>
+
+            <p class="preview-hint">Vista previa real de cada plantilla, con contenido de ejemplo. Haz clic en la imagen para ampliarla.</p>
+            <div class="template-picker">
+              {% for key, tpl in harvard_templates.items() %}
+              <label class="template-option">
+                <input type="radio" name="template_choice" value="{{ key }}" {{ 'checked' if loop.first }} required>
+                <span class="template-card">
+                  <span class="template-preview">
+                    <img src="{{ url_for('static', filename='previews/' + key + '_full.png') }}"
+                         alt="Vista previa de la plantilla {{ tpl.label }}" class="preview-img"
+                         data-lightbox-src="{{ url_for('static', filename='previews/' + key + '_full.png') }}"
+                         loading="lazy">
+                    <span class="preview-zoom" aria-hidden="true">Ampliar</span>
+                  </span>
+                  <strong>{{ tpl.label }}</strong>
+                  <small>{{ tpl.description }}</small>
+                </span>
+              </label>
+              {% endfor %}
+            </div>
+
+            <div class="language-picker">
+              <p class="language-label">Idioma del CV <span class="optional">(elige hasta 2)</span></p>
+              <div class="language-options">
+                {% for code, lang in harvard_languages.items() %}
+                <label class="language-chip">
+                  <input type="checkbox" name="languages" value="{{ code }}" class="language-checkbox"
+                         {{ 'checked' if code == 'es' }}>
+                  <span>{{ lang.label }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            <button type="submit" class="harvard-button">
+              Generar y descargar mi CV Harvard gratis
+            </button>
+          </form>
+          {% endif %}
 
           <a class="whatsapp-cta"
              href="https://wa.me/{{ whatsapp_number }}?text={{ whatsapp_message | urlencode }}"
@@ -190,6 +252,11 @@
   </div>
 
   {% if result %}
+  <div class="lightbox" id="preview-lightbox" hidden>
+    <button type="button" class="lightbox-close" aria-label="Cerrar">×</button>
+    <img id="preview-lightbox-img" src="" alt="Vista previa ampliada de la plantilla">
+  </div>
+
   <script>
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
@@ -202,6 +269,39 @@
         }
       });
     });
+
+    (function () {
+      var lightbox = document.getElementById('preview-lightbox');
+      var lightboxImg = document.getElementById('preview-lightbox-img');
+      if (!lightbox) return;
+
+      document.querySelectorAll('[data-lightbox-src]').forEach(function (img) {
+        img.addEventListener('click', function (e) {
+          e.preventDefault();
+          lightboxImg.src = img.dataset.lightboxSrc;
+          lightbox.hidden = false;
+        });
+      });
+
+      function closeLightbox() { lightbox.hidden = true; lightboxImg.src = ''; }
+      lightbox.addEventListener('click', closeLightbox);
+      document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeLightbox();
+      });
+    })();
+
+    (function () {
+      var boxes = document.querySelectorAll('.language-checkbox');
+      if (!boxes.length) return;
+      var max = 2;
+      boxes.forEach(function (box) {
+        box.addEventListener('change', function () {
+          var checked = document.querySelectorAll('.language-checkbox:checked');
+          boxes.forEach(function (b) { b.disabled = checked.length >= max && !b.checked; });
+        });
+      });
+    })();
   </script>
   {% endif %}
 </body>

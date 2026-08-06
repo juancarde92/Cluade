@@ -1,8 +1,8 @@
 """Minimal file-backed counters for basic usage/conversion tracking.
 
 Not a real analytics platform — just enough to answer "is anyone using
-this and are they paying?" without adding a database or external
-service. Counts persist across worker restarts within the same Render
+this?" without adding a database or external service. Counts persist
+across worker restarts within the same Render
 deploy (same container filesystem), but reset on a new deploy, since
 Render's free tier disk isn't persisted across deploys.
 """
@@ -16,6 +16,7 @@ _lock = threading.Lock()
 DEFAULT_STATS = {
     "visits": 0,
     "analyses": 0,
+    "harvard_generations": 0,
 }
 
 

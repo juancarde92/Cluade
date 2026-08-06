@@ -183,6 +183,114 @@ body {
   line-height: 1.3;
 }
 
+.book-promo {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  animation: fadeInUp 0.5s ease 0.11s both;
+}
+
+.book-cover-mock {
+  flex-shrink: 0;
+  width: 110px;
+  height: 156px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  background: #f7c600;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+}
+
+.book-cover-spiral {
+  width: 16px;
+  flex-shrink: 0;
+  background-image: repeating-linear-gradient(
+    to bottom, #1c2733 0, #1c2733 3px, transparent 3px, transparent 9px
+  );
+  background-position: center;
+}
+
+.book-cover-page {
+  flex: 1;
+  background: #fdfdfb;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 8px;
+}
+
+.book-cover-title {
+  font-weight: 800;
+  font-size: 0.62rem;
+  line-height: 1.15;
+  color: #1c2733;
+}
+
+.book-cover-subtitle {
+  font-size: 0.42rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #5c6b7a;
+}
+
+.book-copy {
+  flex: 1;
+  min-width: 220px;
+}
+
+.book-label {
+  margin: 0 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.book-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  border-left: none;
+  padding-left: 0;
+}
+
+.book-desc {
+  margin: 0 0 16px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.book-button {
+  display: inline-block;
+  background: linear-gradient(135deg, #f7c600, #d9a900);
+  color: #1c2733;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(217, 169, 0, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.book-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(217, 169, 0, 0.42);
+}
+
+@media (max-width: 520px) {
+  .book-promo { flex-direction: column; text-align: center; }
+  .book-copy { min-width: 0; }
+}
+
 .example-card {
   background: var(--card);
   border-radius: 16px;

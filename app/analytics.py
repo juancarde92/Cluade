@@ -16,9 +16,6 @@ _lock = threading.Lock()
 DEFAULT_STATS = {
     "visits": 0,
     "analyses": 0,
-    "harvard_checkouts_started": 0,
-    "harvard_purchases": 0,
-    "harvard_revenue_cop": 0,
 }
 
 
